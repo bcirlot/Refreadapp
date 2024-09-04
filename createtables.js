@@ -16,6 +16,7 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     clearUserTable();
 });
 
+//Code for clearing is already made, creating, and populating the chaptersmaster table with all the necessary data
 function clearChaptersTable() {
     // Drop the chaptersmaster table if it exists
     db.run(`DROP TABLE IF EXISTS chaptersmaster`, (err) => {
@@ -110,8 +111,6 @@ function insertChaptersFromCSV() {
             console.error(`Error reading CSV file: ${err.message}`);
         });
 }
-
-// Function to infer whether the book is in the Old or New Testament
 function inferTestament(bookName) {
     const oldTestamentBooks = [
         'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 
@@ -125,23 +124,7 @@ function inferTestament(bookName) {
     }
 }
 
-
-
-function createUserChaptersTable() {
-     // Create the user_chapters table
-    db.run(`CREATE TABLE IF NOT EXISTS user_chapters (
-        user_id INTEGER,
-        chapter_id INTEGER,
-        FOREIGN KEY(user_id) REFERENCES users(id),
-        FOREIGN KEY(chapter_id) REFERENCES chaptersmaster(id)
-    )`, (err) => {
-        if (err) {
-            console.error(err.message);
-            return;
-        }
-        console.log('Created user_chapters table.');
-    });
-}
+//Code for clearing, creating, and populating the users table (this needs to be removed in view of a user registration option)
 function clearUserTable() {
     // Delete all existing data from the chaptersmaster table
     db.run(`DROP TABLE IF EXISTS users`, (err) => {
@@ -205,6 +188,24 @@ function insertUserData() {
     });
     
 }
+
+//code for creating the table to user reading reports that will be populated by the server.js and record.ejs code
+function createUserChaptersTable() {
+    // Create the user_chapters table
+   db.run(`CREATE TABLE IF NOT EXISTS user_chapters (
+       user_id INTEGER,
+       chapter_id INTEGER,
+       FOREIGN KEY(user_id) REFERENCES users(id),
+       FOREIGN KEY(chapter_id) REFERENCES chaptersmaster(id)
+   )`, (err) => {
+       if (err) {
+           console.error(err.message);
+           return;
+       }
+       console.log('Created user_chapters table.');
+   });
+}
+
 function closeDatabase() {
     // Close the database connection
     db.close((err) => {
@@ -215,14 +216,4 @@ function closeDatabase() {
         console.log('Closed the database connection.');
     });
 }
-// fs.createReadStream('bibletaxonomy.csv')
-//   .pipe(csv())
-//   .on('headers', (headers) => {
-//     console.log('CSV Headers:', headers); // Log the headers from the CSV
-//   })
-//   .on('data', (row) => {
-//     console.log('Sample row:', row); // Log a sample row
-//   })
-//   .on('end', () => {
-//     console.log('Finished reading CSV.');
-//   });
+
