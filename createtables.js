@@ -113,7 +113,7 @@ function insertChaptersFromCSV() {
 }
 function inferTestament(bookName) {
     const oldTestamentBooks = [
-        'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 
+        'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi'
         // Add all Old Testament book names here...
     ];
 
@@ -193,8 +193,10 @@ function insertUserData() {
 function createUserChaptersTable() {
     // Create the user_chapters table
    db.run(`CREATE TABLE IF NOT EXISTS user_chapters (
-       user_id INTEGER,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,   
+        user_id INTEGER,
        chapter_id INTEGER,
+       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
        FOREIGN KEY(user_id) REFERENCES users(id),
        FOREIGN KEY(chapter_id) REFERENCES chaptersmaster(id)
    )`, (err) => {
