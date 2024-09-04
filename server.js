@@ -162,7 +162,9 @@ app.post('/record', (req, res) => {
     const bookName = req.body.bookName;
 
     console.log(`Received form submission: Book - ${bookName}, Start Chapter - ${startChapter}, End Chapter - ${endChapter}`);
-
+    if (!bookName) {
+        return res.status(400).send('Book name is missing.');
+    }
     const startChapterId = parseInt(startChapter);
     const endChapterId = parseInt(endChapter);
 
