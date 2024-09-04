@@ -12,8 +12,8 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     }
     console.log('Connected to the mydatabase.db database.');
     clearChaptersTable();
-    createUserChaptersTable();
     clearUserTable();
+    clearUserChaptersTable();
 });
 
 //Code for clearing is already made, creating, and populating the chaptersmaster table with all the necessary data
@@ -190,6 +190,19 @@ function insertUserData() {
 }
 
 //code for creating the table to user reading reports that will be populated by the server.js and record.ejs code
+function clearUserChaptersTable() {
+    // Delete all existing data from the chaptersmaster table
+    db.run(`DROP TABLE IF EXISTS user_chapters`, (err) => {
+        if (err) {
+            console.error(err.message);
+            return;
+        }
+        console.log('Cleared existing data from user_chapters table.');
+
+        // After clearing data, recreate the table and insert new data
+        createUserChaptersTable();
+    });
+}
 function createUserChaptersTable() {
     // Create the user_chapters table
    db.run(`CREATE TABLE IF NOT EXISTS user_chapters (
