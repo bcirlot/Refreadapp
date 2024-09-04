@@ -83,11 +83,12 @@ app.get('/', (req, res) => {
     const userId = req.session.userId;
     const userSql = `SELECT name FROM users WHERE id = ?`;
     const dataSql = `SELECT users.name as user_name, 
-                        chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name
-                 FROM user_chapters
-                 INNER JOIN users ON user_chapters.user_id = users.id
-                 INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
-                 WHERE users.id = ?`;
+                            chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name,
+                            user_chapters.timestamp -- Include timestamp from user_chapters table
+                     FROM user_chapters
+                     INNER JOIN users ON user_chapters.user_id = users.id
+                     INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+                     WHERE users.id = ?`;
 
     db.get(userSql, [userId], (err, userRow) => {
         if (err) {
