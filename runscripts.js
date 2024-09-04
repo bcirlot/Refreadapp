@@ -1,3 +1,5 @@
+//Not currently using this file anymore, will probably delete.
+
 const { execSync } = require('child_process');
 
 function runScriptSync(scriptName) {
@@ -9,9 +11,6 @@ function runScriptSync(scriptName) {
         console.error(`Error executing ${scriptName}:`, error.message);
     }
 }
-
 // Run scripts in sequence
 runScriptSync('createtables.js');
-runScriptSync('readingreport.js');
-
 console.log('All scripts have been executed.');
