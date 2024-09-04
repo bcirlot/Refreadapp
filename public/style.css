@@ -1,0 +1,46 @@
+/* Ensure the overall container is centered */
+.container {
+    max-width: 800px;
+    margin: 0 auto; /* This centers the container */
+    display: flex;
+    justify-content: space-between; /* Distribute the items (maincontent and sidebar) */
+}
+
+/* Style for the main content section */
+#maincontent {
+    flex: 3; /* Takes up 3 parts of the available space */
+    padding: 10px;
+    background-color: #f0f0f0; /* Light background for visibility */
+    border-radius: 5px;
+}
+
+/* Style for the sidebar */
+#sidebar {
+    flex: 1; /* Takes up 1 part of the available space */
+    padding: 10px;
+    background-color: #d9d9d9; /* Different background for sidebar */
+    border-radius: 5px;
+}
+.chapter-item {
+    float:left;
+    width: 80px;
+}
+#buttonwrapper {
+    display: block;
+    max-width: 200px;
+    float: left;
+}
+#buttonwrapper .content {
+    clear:both;
+}
+/* Optional: Adjust layout on smaller screens */
+@media (max-width: 800px) {
+    .container {
+        flex-direction: column; /* Stack the divs vertically on smaller screens */
+    }
+    #maincontent, #sidebar {
+        flex: none; /* Reset flex behavior */
+        width: 100%; /* Make each div full width */
+        margin-bottom: 15px; /* Add space between stacked elements */
+    }
+}

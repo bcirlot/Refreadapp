@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Chapters</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div id="maincontent">           
+    
+    <h1>User Chapters</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>User Name</th>
+                <th>Chapter Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% data.forEach(function(row) { %>
+                <tr>
+                    <td><%= row.user_name %></td>
+                    <td><%= row.chapter_name %></td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+</div>
+<div id="sidebar">
+    <h2>Welcome, <%= userName %>!</h2>
+    <a href="/record">Record a Chapter</a>
+</div>
+</div>
+</body>
+</html>
