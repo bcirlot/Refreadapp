@@ -207,10 +207,10 @@ function createUserChaptersTable() {
     // Create the user_chapters table
    db.run(`CREATE TABLE IF NOT EXISTS user_chapters (
         id INTEGER PRIMARY KEY AUTOINCREMENT,   
-        user_id INTEGER,
+        reader_id INTEGER,
        chapter_id INTEGER,
        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-       FOREIGN KEY(user_id) REFERENCES users(id),
+       FOREIGN KEY(reader_id) REFERENCES readers(id),
        FOREIGN KEY(chapter_id) REFERENCES chaptersmaster(id)
    )`, (err) => {
        if (err) {
@@ -218,6 +218,36 @@ function createUserChaptersTable() {
            return;
        }
        console.log('Created user_chapters table.');
+   });
+}
+//working towards readers instead of users being the thing reporting chapters
+//the idea is the family is the same as the first user in that family so i will
+//make them related by the firsst users' user id.
+function createReadersTable() {
+    db.run(`CREATE TABLE IF NOT EXISTS readers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        family_id INTEGER, 
+        reader_name TEXT
+    )`, (err) => {
+       if (err) {
+           console.error(err.message);
+           return;
+       }
+       console.log('Created readers table.');
+   });
+}
+function createFamiliesTable() {
+    db.run(`CREATE TABLE IF NOT EXISTS family (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER, 
+        family_name TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )`, (err) => {
+       if (err) {
+           console.error(err.message);
+           return;
+       }
+       console.log('Created family table.');
    });
 }
 
