@@ -16,7 +16,7 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     clearUserChaptersTable();
 });
 
-//Code for clearing is already made, creating, and populating the chaptersmaster table with all the necessary data
+//Code for clearing if already made, creating, and populating the chaptersmaster table with all the necessary data
 function clearChaptersTable() {
     // Drop the chaptersmaster table if it exists
     db.run(`DROP TABLE IF EXISTS chaptersmaster`, (err) => {
