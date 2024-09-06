@@ -229,6 +229,10 @@ app.post('/record', (req, res) => {
     }
 });
 
+app.get('/admin', (req, res) => {
+
+});
+
 
 
 // Start the server
