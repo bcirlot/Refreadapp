@@ -1,0 +1,122 @@
+const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+const csv = require('csv-parser'); // For parsing the CSV file
+
+
+// Create and connect to a database
+let db = new sqlite3.Database('./mydatabase.db', (err) => {
+    if (err) {
+        console.error(err.message);
+        return;
+    }
+    console.log('Connected to the mydatabase.db database.');
+    clearUserChaptersTable();
+});
+
+//Code for clearing if already made, creating, and populating the chaptersmaster table with all the necessary data
+function clearChaptersTable() {
+    // Drop the chaptersmaster table if it exists
+    db.run(`DROP TABLE IF EXISTS chaptersmaster`, (err) => {
+        if (err) {
+            console.error(err.message);
+            return;
+        }
+        console.log('Cleared existing data from chaptersmaster table.');
+        createChaptersTable();
+    });
+}
+function createChaptersTable() {
+    db.run(`CREATE TABLE IF NOT EXISTS chaptersmaster (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        book TEXT,
+        chapter INTEGER,
+        testament TEXT,
+        verses INTEGER
+    )`, (err) => {
+        if (err) {
+            console.error(err.message);
+            return;
+        }
+        console.log('Created chaptersmaster table.');
+
+        // After creating the table, insert the data from the CSV file
+        insertChaptersFromCSV();
+    });
+}
+function insertChaptersFromCSV() {
+    const filePath = 'bibletaxonomy.csv'; // Update with the correct path
+
+    // Create an empty object to store chapters and count verses
+    const chapters = {};
+
+    // Read the CSV file
+    fs.createReadStream(filePath)
+        .pipe(csv({
+            mapHeaders: ({ header, index }) => header.trim() // Ensure headers are trimmed
+        }))
+        .on('data', (row) => {
+            // Log the actual row to debug issues with undefined values
+            console.log('Full row object:', row);
+
+            // Trim values and log each key-value pair for debugging
+            const Book = row['Book']?.trim();
+            const Chapter = row['Chapter']?.trim();
+            const Verse = row['Verse']?.trim();
+
+            // Log extracted values to debug
+            console.log(`Book: ${Book}, Chapter: ${Chapter}, Verse: ${Verse}`);
+
+            if (!Book || !Chapter || !Verse) {
+                console.error('Invalid row format:', row);
+                return; // Skip invalid rows
+            }
+
+            const chapterKey = `${Book}-${Chapter}`; // Unique key for each book-chapter combo
+
+            // If the chapter already exists in the object, increment the verse count
+            if (chapters[chapterKey]) {
+                chapters[chapterKey].verses += 1;
+            } else {
+                // Otherwise, initialize the chapter with 1 verse
+                chapters[chapterKey] = {
+                    book: Book,
+                    chapter: parseInt(Chapter, 10), // Ensure chapter is an integer
+                    testament: inferTestament(Book), // Infer testament
+                    verses: 1,
+                };
+            }
+        })
+        .on('end', () => {
+            // Prepare the insert statement
+            const stmt = db.prepare(`INSERT INTO chaptersmaster (book, chapter, testament, verses) VALUES (?, ?, ?, ?)`);
+
+            // Insert each chapter and its verse count into the database
+            Object.values(chapters).forEach((chapter) => {
+                console.log('Inserting chapter:', chapter); // Log each insert for debugging
+                stmt.run([chapter.book, chapter.chapter, chapter.testament, chapter.verses], (err) => {
+                    if (err) {
+                        console.error(`Error inserting row: ${err.message}`);
+                    }
+                });
+            });
+
+            stmt.finalize();
+            console.log('All chapters inserted.');
+            db.close();
+        })
+        .on('error', (err) => {
+            console.error(`Error reading CSV file: ${err.message}`);
+        });
+}
+function inferTestament(bookName) {
+    const oldTestamentBooks = [
+        'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi'
+        // Add all Old Testament book names here...
+    ];
+
+    if (oldTestamentBooks.includes(bookName)) {
+        return 'Old';
+    } else {
+        return 'New';
+    }
+}
