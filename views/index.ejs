@@ -9,8 +9,12 @@
 <body>
     <div class="container">
         <div id="maincontent">  
-            <h2>Total Chapters: <%= totalChapters %></h2>       
-            
+            <h2>Total Chapters Read: <%= totalChapters %></h2>
+            <h2>Total Bible Completions: <%= completions %></h2>
+<h3>Progress toward the next completion: <%= progressPercentage %> %</h3>
+<h4>Chapters remaining for next completion: <%= totalBibleChapters - remainingChaptersForNextCompletion %> of <%= totalBibleChapters %></h4>
+            <a href="/unread-chapters">What needs to be read?</a>
+            <a href="#" id="openBibleProgress">View Bible Progress</a>
             <% if (isLoggedIn) { %>
                 <h2>Chapter Counts by Reader</h2>
                 <table border="1">
@@ -57,6 +61,17 @@
                 <h1>Welcome to the Reading Tracker App!</h1>
                 <p>Please <a href="/login">log in</a> to track your reading progress.</p>
             <% } %>
+            
+
+            <!-- Modal for Bible Progress -->
+            <div id="bibleProgressModal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <div id="bibleProgressContainer">
+                        <!-- Bible progress content will be loaded here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="sidebar">
@@ -69,6 +84,40 @@
                 <a href="/login">Login</a>
             <% } %>
         </div>
+        <!-- JavaScript for Modal -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var modal = document.getElementById('bibleProgressModal');
+            var modalContent = document.getElementById('bibleProgressContainer');
+            var closeBtn = document.getElementsByClassName('close')[0];
+            var openLink = document.getElementById('openBibleProgress');
+
+            // When the user clicks on the Bible Progress link, open the modal
+            openLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Fetch the Bible progress content dynamically
+                fetch('/bible-progress')
+                    .then(response => response.text())
+                    .then(data => {
+                        modalContent.innerHTML = data; // Inject content into the modal
+                        modal.style.display = 'block'; // Show the modal
+                    })
+                    .catch(error => console.error('Error loading Bible progress:', error));
+            });
+
+            // When the user clicks on the close button, close the modal
+            closeBtn.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+
+            // When the user clicks anywhere outside the modal, close it
+            window.addEventListener('click', function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+    </script>
     </div>
 </body>
 </html>

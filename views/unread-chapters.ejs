@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unread Chapters</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Books and Chapters Yet to Be Read</h1>
+        <% if (Object.keys(unreadChaptersByBook).length === 0) { %>
+            <p>All chapters have been read!</p>
+        <% } else { %>
+            <ul>
+                <% for (let book in unreadChaptersByBook) { %>
+                    <li>
+                        <strong><%= book %></strong>: 
+                        <%= unreadChaptersByBook[book].join(', ') %> <!-- List unread chapters -->
+                    </li>
+                <% } %>
+            </ul>
+        <% } %>
+    </div>
+</body>
+</html>

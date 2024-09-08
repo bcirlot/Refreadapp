@@ -33,8 +33,8 @@ const transporter = nodemailer.createTransport({
         user: 'reformationreading@thesquarechurch.com', // Your Zoho email address
         pass: 'Semper$!2' // Your Zoho email password
     },
-    debug: true, // Add this line to enable debug output
-    logger: true
+    //debug: true, // Add this line to enable debug output
+    //logger: true
 });
 
 // Verify the transporter connection
@@ -244,7 +244,15 @@ app.post('/reset-password/:token', (req, res) => {
 //Main Page
 app.get('/', (req, res) => {
     const isLoggedIn = req.session.userId !== undefined;
+
+    // Total number of Bible chapters (Protestant canon)
+    const totalBibleChapters = 1189;
+
+    // SQL to get the total chapters read across all users
     const totalChaptersSql = `SELECT COUNT(*) as total FROM user_chapters`;
+
+    // SQL to get the distinct chapters read by all users
+    const distinctChaptersSql = `SELECT COUNT(DISTINCT chapter_id) AS distinct_chapters_read FROM user_chapters`;
 
     // Always fetch the total chapters across all users
     db.get(totalChaptersSql, (err, totalRow) => {
@@ -255,69 +263,164 @@ app.get('/', (req, res) => {
 
         const totalChapters = totalRow.total;
 
-        // If the user is not logged in, render the view with just the totalChapters
-        if (!isLoggedIn) {
-            return res.render('index', {
-                userName: null,
-                readerCounts: [],
-                chapterRows: [],
-                totalChapters: totalChapters,
-                isLoggedIn: false
-            });
-        }
-
-        const userId = req.session.userId;
-        const userSql = `SELECT name FROM users WHERE id = ?`;
-        const readersSql = `SELECT readers.reader_name, COUNT(user_chapters.id) as chapter_count
-                            FROM readers
-                            LEFT JOIN user_chapters ON readers.id = user_chapters.reader_id
-                            WHERE readers.family_id = (SELECT family.id FROM family WHERE family.user_id = ?)
-                            GROUP BY readers.reader_name`;
-        const dataSql = `SELECT users.name as user_name, 
-                                readers.reader_name,
-                                family.family_name,
-                                chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name,
-                                user_chapters.timestamp
-                         FROM user_chapters
-                         INNER JOIN users ON user_chapters.user_id = users.id
-                         INNER JOIN readers ON user_chapters.reader_id = readers.id
-                         INNER JOIN family ON readers.family_id = family.id
-                         INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
-                         WHERE users.id = ?`;
-
-        db.get(userSql, [userId], (err, userRow) => {
+        // Fetch distinct chapters read to calculate progress
+        db.get(distinctChaptersSql, (err, distinctRow) => {
             if (err) {
                 console.error(err.message);
-                return res.status(500).send('Error retrieving user');
+                return res.status(500).send('Error retrieving distinct chapters read');
             }
 
-            const userName = userRow ? userRow.name : 'Guest';
+            const distinctChaptersRead = distinctRow.distinct_chapters_read;
 
-            // Get readers' counts and chapter details only if the user is logged in
-            db.all(readersSql, [userId], (err, readerCounts) => {
+            // Calculate Bible completions and progress toward the next completion
+            const completions = Math.floor(distinctChaptersRead / totalBibleChapters);
+            const remainingChaptersForNextCompletion = distinctChaptersRead % totalBibleChapters;
+            const progressPercentage = (remainingChaptersForNextCompletion / totalBibleChapters) * 100;
+
+            // If the user is not logged in, render the view with just the totalChapters and progress
+            if (!isLoggedIn) {
+                return res.render('index', {
+                    userName: null,
+                    readerCounts: [],
+                    chapterRows: [],
+                    totalChapters,
+                    completions, // Number of full Bible completions
+                    distinctChaptersRead,
+                    remainingChaptersForNextCompletion,
+                    totalBibleChapters,
+                    progressPercentage: progressPercentage.toFixed(2), // Display 2 decimal points
+                    isLoggedIn: false
+                });
+            }
+
+            const userId = req.session.userId;
+            const userSql = `SELECT name FROM users WHERE id = ?`;
+            const readersSql = `SELECT readers.reader_name, COUNT(user_chapters.id) as chapter_count
+                                FROM readers
+                                LEFT JOIN user_chapters ON readers.id = user_chapters.reader_id
+                                WHERE readers.family_id = (SELECT family.id FROM family WHERE family.user_id = ?)
+                                GROUP BY readers.reader_name`;
+            const dataSql = `SELECT users.name as user_name, 
+                                    readers.reader_name,
+                                    family.family_name,
+                                    chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name,
+                                    user_chapters.timestamp
+                             FROM user_chapters
+                             INNER JOIN users ON user_chapters.user_id = users.id
+                             INNER JOIN readers ON user_chapters.reader_id = readers.id
+                             INNER JOIN family ON readers.family_id = family.id
+                             INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+                             WHERE users.id = ?`;
+
+            db.get(userSql, [userId], (err, userRow) => {
                 if (err) {
                     console.error(err.message);
-                    return res.status(500).send('Error retrieving reader counts');
+                    return res.status(500).send('Error retrieving user');
                 }
 
-                db.all(dataSql, [userId], (err, chapterRows) => {
+                const userName = userRow ? userRow.name : 'Guest';
+
+                // Get readers' counts and chapter details only if the user is logged in
+                db.all(readersSql, [userId], (err, readerCounts) => {
                     if (err) {
                         console.error(err.message);
-                        return res.status(500).send('Error retrieving chapters');
+                        return res.status(500).send('Error retrieving reader counts');
                     }
 
-                    res.render('index', {
-                        userName,
-                        readerCounts,
-                        chapterRows,
-                        totalChapters,
-                        isLoggedIn: true
+                    db.all(dataSql, [userId], (err, chapterRows) => {
+                        if (err) {
+                            console.error(err.message);
+                            return res.status(500).send('Error retrieving chapters');
+                        }
+
+                        res.render('index', {
+                            userName,
+                            readerCounts,
+                            chapterRows,
+                            totalChapters,
+                            completions, // Number of full Bible completions
+                            distinctChaptersRead,
+                            remainingChaptersForNextCompletion,
+                            totalBibleChapters,
+                            progressPercentage: progressPercentage.toFixed(2), // Display 2 decimal points
+                            isLoggedIn: true
+                        });
                     });
                 });
             });
         });
     });
 });
+
+
+app.get('/unread-chapters', (req, res) => {
+    const unreadChaptersSql = `
+        SELECT chaptersmaster.book, chaptersmaster.chapter
+        FROM chaptersmaster
+        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+        WHERE user_chapters.chapter_id IS NULL
+        ORDER BY chaptersmaster.id 
+    `;
+
+    db.all(unreadChaptersSql, [], (err, unreadRows) => {
+        if (err) {
+            console.error('Error fetching unread chapters:', err.message);
+            return res.status(500).send('Error retrieving unread chapters');
+        }
+
+        // Group unread chapters by book
+        const unreadChaptersByBook = {};
+        unreadRows.forEach(row => {
+            const book = row.book.trim();
+            if (!unreadChaptersByBook[book]) {
+                unreadChaptersByBook[book] = [];
+            }
+            unreadChaptersByBook[book].push(row.chapter);
+        });
+
+        res.render('unread-chapters', { unreadChaptersByBook });
+    });
+});
+
+app.get('/bible-progress', (req, res) => {
+    const allChaptersSql = `
+        SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
+               CASE WHEN user_chapters.chapter_id IS NOT NULL THEN 1 ELSE 0 END as is_read
+        FROM chaptersmaster
+        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+        ORDER BY chaptersmaster.id  -- Maintain Bible order
+    `;
+
+    db.all(allChaptersSql, [], (err, chapters) => {
+        if (err) {
+            console.error('Error fetching Bible chapters:', err.message);
+            return res.status(500).send('Error retrieving Bible progress');
+        }
+
+        // Group chapters by book
+        const chaptersByBook = {};
+        chapters.forEach(row => {
+            const book = row.book.trim();
+            if (!chaptersByBook[book]) {
+                chaptersByBook[book] = [];
+            }
+            chaptersByBook[book].push({
+                chapter: row.chapter,
+                isRead: row.is_read
+            });
+        });
+
+        // Render only the progress view without the layout
+        res.render('bible-progress', { chaptersByBook }, (err, html) => {
+            if (err) {
+                return res.status(500).send('Error rendering progress');
+            }
+            res.send(html); // Return the HTML fragment for the modal
+        });
+    });
+});
+
+
 
 
 
@@ -366,8 +469,9 @@ app.get('/record', (req, res) => {
                     if (!chaptersByBook[book]) {
                         chaptersByBook[book] = [];
                     }
-                    chaptersByBook[book].push({ id: chapter.id, name: `${book} ${chapter.chapter}` });
+                    chaptersByBook[book].push({ id: chapter.id, chapter: chapter.chapter });
                 });
+                
 
                 // Render the record page with readers and chapters
                 res.render('record', { userName: req.session.userName, readers, chaptersByBook });

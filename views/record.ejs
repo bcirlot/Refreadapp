@@ -75,102 +75,103 @@
     </style>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            var coll = document.getElementsByClassName("collapsible");
-            var overlay = document.createElement("div");
-            overlay.classList.add("overlay");
-            document.body.appendChild(overlay);
-        
-            // Track selected book button to deactivate it on overlay close
-            let activeButton = null;
-            let bookName = null;  // Variable to store the selected book name
-        
-            for (var i = 0; i < coll.length; i++) {
-                coll[i].addEventListener("click", function() {
-                    this.classList.toggle("active");
-                    var content = this.nextElementSibling;
-        
-                    // Set activeButton to the currently clicked button
-                    activeButton = this;
-                    bookName = this.textContent.trim();  // Capture the book name
-                    document.getElementById('bookName').value = bookName;  // Set the hidden input with the book name
-                    console.log("Selected book:", bookName);  // Log the selected book
-        
-                    if (content.style.display === "block") {
-                        content.style.display = "none";
-                        overlay.style.display = "none";
-                        activeButton.classList.remove("active");
-                        console.log("Closing popup for book:", this.textContent);  // Log when popup is closed
-                    } else {
-                        content.style.display = "block";
-                        content.classList.add("popup");
-                        overlay.style.display = "block";
-                        console.log("Opening popup for book:", this.textContent);  // Log when popup is opened
-                    }
-                });
+    var coll = document.getElementsByClassName("collapsible");
+    var overlay = document.createElement("div");
+    overlay.classList.add("overlay");
+    document.body.appendChild(overlay);
+
+    // Track selected book button to deactivate it on overlay close
+    let activeButton = null;
+    let bookName = null;  // Variable to store the selected book name
+
+    for (var i = 0; i < coll.length; i++) {
+        coll[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var content = this.nextElementSibling;
+
+            // Set activeButton to the currently clicked button
+            activeButton = this;
+            bookName = this.textContent.trim();  // Capture the book name
+            document.getElementById('bookName').value = bookName;  // Set the hidden input with the book name
+            console.log("Selected book:", bookName);  // Log the selected book
+
+            if (content.style.display === "block") {
+                content.style.display = "none";
+                overlay.style.display = "none";
+                activeButton.classList.remove("active");
+                console.log("Closing popup for book:", this.textContent);  // Log when popup is closed
+            } else {
+                content.style.display = "block";
+                content.classList.add("popup");
+                overlay.style.display = "block";
+                console.log("Opening popup for book:", this.textContent);  // Log when popup is opened
             }
-        
-            overlay.addEventListener("click", function(event) {
-                if (event.target === overlay) {
-                    document.querySelectorAll('.content').forEach(function(content) {
-                        content.style.display = "none";
-                    });
-                    overlay.style.display = "none";
-        
-                    // Deactivate the selected book button
-                    if (activeButton) {
-                        activeButton.classList.remove("active");
-                        console.log("Overlay clicked, closing popup for book:", activeButton.textContent);  // Log overlay click
-                    }
-                }
-            });
-        
-            let startChapter = null;
-        
-            document.querySelectorAll('.chapter-item').forEach(function(item) {
-                item.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    console.log("Clicked chapter:", this.textContent);  // Log which chapter was clicked
-        
-                    if (!startChapter) {
-                        startChapter = this;
-                        startChapter.classList.add('selected-chapter');
-                        setChapterRange(this.getAttribute('data-start'), this.getAttribute('data-start'));
-                        console.log("Selected start chapter:", startChapter.getAttribute('data-start'));  // Log selected start chapter
-                    } else {
-                        const endChapter = this;
-                        endChapter.classList.add('selected-chapter');
-                        const startChapterName = startChapter.getAttribute('data-start');
-                        const endChapterName = endChapter.getAttribute('data-end');
-                        setChapterRange(startChapterName, endChapterName);
-                        console.log("Selected end chapter:", endChapterName);  // Log selected end chapter
-                        startChapter = null;
-                    }
-                });
-            });
-        
-            document.getElementById('chapterForm').addEventListener('submit', function(e) {
-                const startChapterId = document.getElementById('startChapterId').value;
-                const endChapterId = document.getElementById('endChapterId').value;
-                const selectedBook = document.getElementById('bookName').value;  // Check the book name
-        
-                console.log("Submitting form with: Book - " + selectedBook + ", Start Chapter - " + startChapterId + ", End Chapter - " + endChapterId);  // Log form submission details
-        
-                // Check if book name, start, and end chapters are correctly set
-                if (!selectedBook || !startChapterId || !endChapterId) {
-                    e.preventDefault();  // Stop form submission
-                    console.error("Form submission prevented due to missing data (book or chapter range).");
-                    alert("Please select a valid book and range of chapters.");
-                    return;
-                }
-            });
         });
-        
-        function setChapterRange(startChapter, endChapter) {
-            document.getElementById('startChapterId').value = startChapter;
-            document.getElementById('endChapterId').value = endChapter;
-            console.log("Chapter range set: Start - " + startChapter + ", End - " + endChapter);  // Log chapter range being set
+    }
+
+    overlay.addEventListener("click", function(event) {
+        if (event.target === overlay) {
+            document.querySelectorAll('.content').forEach(function(content) {
+                content.style.display = "none";
+            });
+            overlay.style.display = "none";
+
+            // Deactivate the selected book button
+            if (activeButton) {
+                activeButton.classList.remove("active");
+                console.log("Overlay clicked, closing popup for book:", activeButton.textContent);  // Log overlay click
+            }
         }
+    });
+
+    let startChapter = null;
+
+    document.querySelectorAll('.chapter-item').forEach(function(item) {
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log("Clicked chapter:", this.textContent);  // Log which chapter was clicked
+
+            if (!startChapter) {
+                startChapter = this;
+                startChapter.classList.add('selected-chapter');
+                setChapterRange(this.getAttribute('data-start'), this.getAttribute('data-start'));
+                console.log("Selected start chapter:", startChapter.getAttribute('data-start'));  // Log selected start chapter
+            } else {
+                const endChapter = this;
+                endChapter.classList.add('selected-chapter');
+                const startChapterName = startChapter.getAttribute('data-start');
+                const endChapterName = endChapter.getAttribute('data-end');
+                setChapterRange(startChapterName, endChapterName);
+                console.log("Selected end chapter:", endChapterName);  // Log selected end chapter
+                startChapter = null;
+            }
+        });
+    });
+
+    document.getElementById('chapterForm').addEventListener('submit', function(e) {
+        const startChapterId = document.getElementById('startChapterId').value;
+        const endChapterId = document.getElementById('endChapterId').value;
+        const selectedBook = document.getElementById('bookName').value;  // Check the book name
+
+        console.log("Submitting form with: Book - " + selectedBook + ", Start Chapter - " + startChapterId + ", End Chapter - " + endChapterId);  // Log form submission details
+
+        // Check if book name, start, and end chapters are correctly set
+        if (!selectedBook || !startChapterId || !endChapterId) {
+            e.preventDefault();  // Stop form submission
+            console.error("Form submission prevented due to missing data (book or chapter range).");
+            alert("Please select a valid book and range of chapters.");
+            return;
+        }
+    });
+});
+
+function setChapterRange(startChapter, endChapter) {
+    document.getElementById('startChapterId').value = startChapter;
+    document.getElementById('endChapterId').value = endChapter;
+    console.log("Chapter range set: Start - " + startChapter + ", End - " + endChapter);  // Log chapter range being set
+}
+
         </script>
         
         
@@ -198,11 +199,9 @@
                 <div id="buttonwrapper">
                     <button type="button" class="collapsible"><%= book %></button>
                     <div class="content">
-                        <% chaptersByBook[book].forEach(function(chapter, index) { %>
-                            <div class="chapter-item"
-                            data-start="<%= chapter.name.split(' ')[1] %>"
-                            data-end="<%= chapter.name.split(' ')[1] %>">
-                            <%= chapter.name.split(' ')[1] %> <!-- Only chapter number -->
+                        <% chaptersByBook[book].forEach(function(chapter) { %>
+                            <div class="chapter-item" data-start="<%= chapter.chapter %>" data-end="<%= chapter.chapter %>">
+                                <%= chapter.chapter %>
                             </div>
                         <% }); %>
                         <button type="submit">Record Chapter Range</button>

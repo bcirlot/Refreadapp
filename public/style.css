@@ -6,12 +6,96 @@
     justify-content: space-between; /* Distribute the items (maincontent and sidebar) */
 }
 
+/* General container styling */
+.book-container {
+    margin-bottom: 20px;
+}
+
+/* Book title styling */
+.book-title {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+/* Chapter container styling */
+.chapter-container {
+    display: inline-block;
+    padding: 10px;
+    width: 10px;
+    height: 10px;
+    text-align: center;
+    border: 1px solid #333;
+}
+
+/* Styling for unread chapters */
+.unread {
+    background-color: #fdf938;
+    color: #333;
+}
+
+/* Styling for read chapters (greyed out) */
+.read {
+    background-color: #67f92e;
+    color: #777;
+}
+
+/* Flexbox layout for books and chapters */
+.book {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+
 /* Style for the main content section */
 #maincontent {
     flex: 3; /* Takes up 3 parts of the available space */
     padding: 10px;
     background-color: #f0f0f0; /* Light background for visibility */
     border-radius: 5px;
+}
+
+/* Modal overlay styles */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scrolling if needed */
+    background-color: rgba(0, 0, 0, 0.5); /* Black with opacity */
+}
+
+.modal-content {
+    background-color: white;
+    margin: 10% auto; /* Center the modal vertically */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Set a width for the modal */
+    max-height: 80vh; /* Limit the maximum height of the modal */
+    overflow-y: auto; /* Enable vertical scrolling */
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); /* Optional: Add some shadow */
+}
+
+#bibleProgressContainer .container {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Close button styling */
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover, .close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
 }
 
 /* Style for the sidebar */

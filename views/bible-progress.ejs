@@ -1,0 +1,14 @@
+<div class="container">
+    <% for (let book in chaptersByBook) { %>
+        <div class="book-container">
+            <div class="book-title"><%= book %></div>
+            <div class="book">
+                <% chaptersByBook[book].forEach(function(chapter) { %>
+                    <div class="chapter-container <%= chapter.isRead ? 'read' : 'unread' %>">
+                        <%= chapter.chapter %>
+                    </div>
+                <% }); %>
+            </div>
+        </div>
+    <% } %>
+</div>
