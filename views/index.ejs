@@ -9,54 +9,66 @@
 <body>
     <div class="container">
         <div id="maincontent">  
-            <h2>Total Chapters:<%= totalChapters %></h2>       
-            <h1>Chapter Counts by Reader</h2>
-            <table border="1">
-                <thead>
-                    <tr>
-                        <th>Reader Name</th>
-                        <th>Total Chapters</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% readerCounts.forEach(function(row) { %>
+            <h2>Total Chapters: <%= totalChapters %></h2>       
+            
+            <% if (isLoggedIn) { %>
+                <h2>Chapter Counts by Reader</h2>
+                <table border="1">
+                    <thead>
                         <tr>
-                            <td><%= row.reader_name %></td>
-                            <td><%= row.chapter_count %></td>
+                            <th>Reader Name</th>
+                            <th>Total Chapters</th>
                         </tr>
-                    <% }); %>
-                </tbody>
-            </table>
-    <h1>User Chapters</h1>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>User Name</th>
-                <th>Reader Name</th>
-                <th>Family Name</th>
-                <th>Chapter Name</th>
-                <th>Timestamp</th>
-            </tr>
-        </thead>
-        <tbody>
-            <% chapterRows.forEach(function(row) { %>
-                <tr>
-                    <td><%= row.user_name %></td>
-                    <td><%= row.reader_name %></td>
-                    <td><%= row.family_name %></td>
-                    <td><%= row.chapter_name %></td>
-                    <td><%= row.timestamp %></td>
-                </tr>
-            <% }); %>
-        </tbody>
-    </table>
-</div>
-<div id="sidebar">
-    <h2>Welcome, <%= userName %>!</h2>
-    <a href="/record">Record a Chapter</a>
-    <a href="/manage">Manage Family</a>
-    <a href="/logout">Logout</a>
-</div>
-</div>
+                    </thead>
+                    <tbody>
+                        <% readerCounts.forEach(function(row) { %>
+                            <tr>
+                                <td><%= row.reader_name %></td>
+                                <td><%= row.chapter_count %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+
+                <h2>User Chapters</h2>
+                <table border="1">
+                    <thead>
+                        <tr>
+                            <th>User Name</th>
+                            <th>Reader Name</th>
+                            <th>Family Name</th>
+                            <th>Chapter Name</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% chapterRows.forEach(function(row) { %>
+                            <tr>
+                                <td><%= row.user_name %></td>
+                                <td><%= row.reader_name %></td>
+                                <td><%= row.family_name %></td>
+                                <td><%= row.chapter_name %></td>
+                                <td><%= row.timestamp %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            <% } else { %>
+                <h1>Welcome to the Reading Tracker App!</h1>
+                <p>Please <a href="/login">log in</a> to track your reading progress.</p>
+            <% } %>
+        </div>
+
+        <div id="sidebar">
+            <% if (isLoggedIn) { %>
+                <h2>Welcome, <%= userName %>!</h2>
+                <a href="/record">Record a Chapter</a>
+                <a href="/manage">Manage Family</a>
+                <a href="/logout">Logout</a>
+            <% } else { %>
+                <a href="/login">Login</a>
+            <% } %>
+        </div>
+    </div>
 </body>
 </html>

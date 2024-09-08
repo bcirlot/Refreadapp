@@ -4,6 +4,8 @@ const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const path = require('path');
+const crypto = require('crypto'); // To generate unique tokens
+const nodemailer = require('nodemailer'); // To send emails
 const app = express();
 const port = 3000;
 
@@ -17,10 +19,32 @@ app.use(session({
     resave: false,
     saveUninitialized: false, // Only save session if there is data
     cookie: {
-        maxAge: 24 * 60 * 60 * 1000, // Session will expire in 24 hours
+        maxAge: 30 * 24 * 60 * 60 * 1000, // Session will expire in 24 hours
         secure: false, // Set to true if using HTTPS
     }
 }));
+
+// Create a transporter for Zoho Mail
+const transporter = nodemailer.createTransport({
+    host: 'smtp.zoho.com',
+    port: 465, // or 587 for TLS
+    secure: true, // use SSL
+    auth: {
+        user: 'reformationreading@thesquarechurch.com', // Your Zoho email address
+        pass: 'Semper$!2' // Your Zoho email password
+    },
+    debug: true, // Add this line to enable debug output
+    logger: true
+});
+
+// Verify the transporter connection
+transporter.verify((error, success) => {
+    if (error) {
+        console.error('Error with transporter setup:', error);
+    } else {
+        console.log('Nodemailer is ready to send emails');
+    }
+});
 
 // Set static folder for serving static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -79,81 +103,224 @@ app.post('/login', (req, res) => {
     });
 });
 
-//Main Page
-app.get('/', (req, res) => {
-    if (!req.session.userId) {
-        return res.redirect('/login');
-    }
 
-    const userId = req.session.userId;
+// Route to handle user registration
+app.post('/register', (req, res) => {
+    const { name, email, password } = req.body;
 
-    const userSql = `SELECT name FROM users WHERE id = ?`;
-    const dataSql = `SELECT users.name AS user_name, 
-                            readers.reader_name,
-                            family.family_name,
-                            chaptersmaster.book || ' ' || chaptersmaster.chapter AS chapter_name,
-                            user_chapters.timestamp
-                     FROM user_chapters
-                     INNER JOIN users ON user_chapters.user_id = users.id
-                     INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
-                     INNER JOIN readers ON user_chapters.reader_id = readers.id
-                     INNER JOIN family ON readers.family_id = family.id
-                     WHERE users.id = ?`;
-
-    const readerChapterCountSql = `SELECT readers.reader_name, COUNT(user_chapters.id) AS chapter_count
-                                   FROM readers
-                                   INNER JOIN family ON readers.family_id = family.id
-                                   LEFT JOIN user_chapters ON user_chapters.reader_id = readers.id
-                                   WHERE family.user_id = ?
-                                   GROUP BY readers.id`;
-
-    // Query to get the total number of chapters across all users
-    const totalChaptersSql = `SELECT COUNT(*) AS total_chapters FROM user_chapters`;
-
-    db.get(userSql, [userId], (err, userRow) => {
+    // Check if the email is already registered
+    const checkEmailSql = `SELECT * FROM users WHERE email = ?`;
+    db.get(checkEmailSql, [email], (err, row) => {
         if (err) {
             console.error(err.message);
-            res.status(500).send('Error retrieving user');
-            return;
+            return res.status(500).send('Error checking email');
         }
 
-        const userName = userRow ? userRow.name : 'Guest';
+        if (row) {
+            // If the email is already registered, show an error message
+            return res.render('login', { error: 'Email already in use. Please log in.' });
+        }
 
-        db.all(dataSql, [userId], (err, chapterRows) => {
+        // Hash the password
+        bcrypt.hash(password, 10, (err, hashedPassword) => {
             if (err) {
                 console.error(err.message);
-                res.status(500).send('Error retrieving data');
-                return;
+                return res.status(500).send('Error hashing password');
             }
 
-            db.all(readerChapterCountSql, [userId], (err, readerCounts) => {
+            // Insert the new user into the database
+            const insertUserSql = `INSERT INTO users (name, email, password) VALUES (?, ?, ?)`;
+            db.run(insertUserSql, [name, email, hashedPassword], function (err) {
                 if (err) {
                     console.error(err.message);
-                    res.status(500).send('Error retrieving reader chapter counts');
-                    return;
+                    return res.status(500).send('Error registering user');
                 }
 
-                // Get the total chapter count across all users
-                db.get(totalChaptersSql, [], (err, totalResult) => {
+                // Automatically log the user in after registration
+                req.session.userId = this.lastID;
+                req.session.userName = name;
+
+                // Redirect to the main page
+                res.redirect('/');
+            });
+        });
+    });
+});
+
+// Render the forgot password page
+app.get('/forgot-password', (req, res) => {
+    res.render('forgot-password', { error: null });
+});
+
+app.post('/forgot-password', (req, res) => {
+    const { email } = req.body;
+    const token = crypto.randomBytes(20).toString('hex');
+
+    // Check if email exists in the database
+    const sql = `SELECT * FROM users WHERE email = ?`;
+    db.get(sql, [email], (err, user) => {
+        if (err || !user) {
+            return res.status(400).send('Email does not exist');
+        }
+
+        // Store token and expiration time in the database
+        const tokenExpiration = Date.now() + 3600000; // 1 hour
+        const updateSql = `UPDATE users SET reset_token = ?, reset_token_expiration = ? WHERE email = ?`;
+        db.run(updateSql, [token, tokenExpiration, email], (err) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send('Error generating reset link');
+            }
+
+            // Send reset email using the global transporter
+            const resetLink = `http://localhost:3000/reset-password/${token}`;
+
+            const mailOptions = {
+                from: 'reformationreading@thesquarechurch.com', // Explicitly set the sender
+                to: email,
+                subject: 'Password Reset',
+                text: `Click this link to reset your password: ${resetLink}`
+            };
+
+            transporter.sendMail(mailOptions, (err, info) => {
+                if (err) {
+                    console.error('Error sending email:', err.message);
+                    return res.status(500).send('Error sending email');
+                }
+                res.send('Password reset link has been sent to your email');
+            });
+        });
+    });
+});
+
+
+app.get('/reset-password/:token', (req, res) => {
+    const { token } = req.params;
+    
+    // Check if token is valid and not expired
+    const sql = `SELECT * FROM users WHERE reset_token = ? AND reset_token_expiration > ?`;
+    db.get(sql, [token, Date.now()], (err, user) => {
+        if (err || !user) {
+            return res.status(400).send('Invalid or expired token');
+        }
+
+        // Render password reset form
+        res.render('reset-password', { token, error: null });
+    });
+});
+
+app.post('/reset-password/:token', (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    // Check if token is valid and not expired
+    const sql = `SELECT * FROM users WHERE reset_token = ? AND reset_token_expiration > ?`;
+    db.get(sql, [token, Date.now()], (err, user) => {
+        if (err || !user) {
+            return res.status(400).send('Invalid or expired token');
+        }
+
+        // Hash the new password and update the database
+        bcrypt.hash(password, 10, (err, hashedPassword) => {
+            if (err) {
+                console.error('Error hashing password:', err.message);
+                return res.status(500).send('Error resetting password');
+            }
+
+            const updateSql = `UPDATE users SET password = ?, reset_token = NULL, reset_token_expiration = NULL WHERE id = ?`;
+            db.run(updateSql, [hashedPassword, user.id], (err) => {
+                if (err) {
+                    console.error('Error updating password:', err.message);
+                    return res.status(500).send('Error updating password');
+                }
+
+                res.send('Your password has been reset successfully. You can now <a href="/login">log in</a>.');
+            });
+        });
+    });
+});
+
+
+//Main Page
+app.get('/', (req, res) => {
+    const isLoggedIn = req.session.userId !== undefined;
+    const totalChaptersSql = `SELECT COUNT(*) as total FROM user_chapters`;
+
+    // Always fetch the total chapters across all users
+    db.get(totalChaptersSql, (err, totalRow) => {
+        if (err) {
+            console.error(err.message);
+            return res.status(500).send('Error retrieving total chapters');
+        }
+
+        const totalChapters = totalRow.total;
+
+        // If the user is not logged in, render the view with just the totalChapters
+        if (!isLoggedIn) {
+            return res.render('index', {
+                userName: null,
+                readerCounts: [],
+                chapterRows: [],
+                totalChapters: totalChapters,
+                isLoggedIn: false
+            });
+        }
+
+        const userId = req.session.userId;
+        const userSql = `SELECT name FROM users WHERE id = ?`;
+        const readersSql = `SELECT readers.reader_name, COUNT(user_chapters.id) as chapter_count
+                            FROM readers
+                            LEFT JOIN user_chapters ON readers.id = user_chapters.reader_id
+                            WHERE readers.family_id = (SELECT family.id FROM family WHERE family.user_id = ?)
+                            GROUP BY readers.reader_name`;
+        const dataSql = `SELECT users.name as user_name, 
+                                readers.reader_name,
+                                family.family_name,
+                                chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name,
+                                user_chapters.timestamp
+                         FROM user_chapters
+                         INNER JOIN users ON user_chapters.user_id = users.id
+                         INNER JOIN readers ON user_chapters.reader_id = readers.id
+                         INNER JOIN family ON readers.family_id = family.id
+                         INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+                         WHERE users.id = ?`;
+
+        db.get(userSql, [userId], (err, userRow) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send('Error retrieving user');
+            }
+
+            const userName = userRow ? userRow.name : 'Guest';
+
+            // Get readers' counts and chapter details only if the user is logged in
+            db.all(readersSql, [userId], (err, readerCounts) => {
+                if (err) {
+                    console.error(err.message);
+                    return res.status(500).send('Error retrieving reader counts');
+                }
+
+                db.all(dataSql, [userId], (err, chapterRows) => {
                     if (err) {
-                        console.error('Error retrieving total chapter count:', err.message);
-                        return res.status(500).send('Error retrieving total chapter count');
+                        console.error(err.message);
+                        return res.status(500).send('Error retrieving chapters');
                     }
 
-                    const totalChapters = totalResult ? totalResult.total_chapters : 0;
-
-                    // Render the index page with all the required data
-                    res.render('index', { 
-                        userName, 
-                        chapterRows, 
-                        readerCounts, 
-                        totalChapters  // Pass total chapter count to the template
+                    res.render('index', {
+                        userName,
+                        readerCounts,
+                        chapterRows,
+                        totalChapters,
+                        isLoggedIn: true
                     });
                 });
             });
         });
     });
 });
+
+
+
 
 
 // Render the record page with collapsible chapters list
@@ -387,7 +554,7 @@ app.get('/logout', (req, res) => {
             console.error('Error destroying session:', err);
             return res.status(500).send('Error logging out.');
         }
-        res.redirect('/login');
+        res.redirect('/');
     });
 });
 
