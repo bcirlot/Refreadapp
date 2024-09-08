@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Chapters</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div id="maincontent">
+        <h1>Manage Family Group</h1>
+
+        <% if (family) { %>
+            <h2>Family: <%= family.family_name %></h2>
+
+            <h3>Readers in the Family:</h3>
+            <ul>
+                <% readers.forEach(function(reader) { %>
+                    <li><%= reader.name %></li>
+                <% }); %>
+            </ul>
+
+            <h3>Add a New Reader:</h3>
+            <form action="/addReader" method="POST">
+                <input type="hidden" name="familyId" value="<%= family.family_id %>">
+                <input type="text" name="readerName" placeholder="Reader's Name" required>
+                <button type="submit">Add Reader</button>
+            </form>
+        <% } else { %>
+            <h2>Create Your Family Group:</h2>
+            <form action="/createFamily" method="POST">
+                <input type="text" name="familyName" placeholder="Family Name" required>
+                <button type="submit">Create Family</button>
+            </form>
+        <% } %>
+        </div>
+        <div id="sidebar">
+            <h2>User: <%= userName %>!</h2>
+            <a href="/record">Record a Chapter</a>
+            <a href="/">Back to Home</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+</body>
+</html>

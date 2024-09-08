@@ -180,9 +180,19 @@
         <div id="maincontent">           
     <h1>Record a Chapter Range</h1>
     <form action="/record" method="post" id="chapterForm">
+        
+        <label for="readerId">Select Reader:</label>
+                <select id="readerId" name="readerId" required>
+                    <% readers.forEach(function(reader) { %>
+                        <option value="<%= reader.id %>"><%= reader.reader_name %></option>
+                    <% }); %>
+                </select>
+                <br><br>
+
         <input type="hidden" id="startChapterId" name="startChapterId" required>
         <input type="hidden" id="endChapterId" name="endChapterId" required>
         <input type="hidden" id="bookName" name="bookName" required> <!-- New hidden field for book name -->
+        
         <div id="chapterselector">
             <% for (let book in chaptersByBook) { %>
                 <div id="buttonwrapper">
@@ -210,6 +220,7 @@
     <h2>Welcome, <%= userName %>!</h2>
     <a href="/record">Record a Chapter</a></br>
     <a href="/">Go back to the list</a>
+    <a href="/logout">Logout</a>
 </div>
 </div>
 </body>

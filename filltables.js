@@ -1,5 +1,5 @@
 
-//for test data in the tables
+//for test data in the family and readers tables
 
 const sqlite3 = require('sqlite3').verbose();
 

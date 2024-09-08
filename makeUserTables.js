@@ -1,7 +1,6 @@
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
-//const csv = require('csv-parser'); // For parsing the CSV file
 
 
 // Create and connect to a database

@@ -1,6 +1,7 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const path = require('path');
 const app = express();
@@ -11,10 +12,14 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 app.use(session({
-    secret: 'your_secret_key',
+    store: new SQLiteStore({ db: 'sessions.sqlite' }), // Specify the SQLite database for sessions
+    secret: 'your_secret_key', // Use a secure secret key
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false }
+    saveUninitialized: false, // Only save session if there is data
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, // Session will expire in 24 hours
+        secure: false, // Set to true if using HTTPS
+    }
 }));
 
 // Set static folder for serving static files
@@ -74,21 +79,36 @@ app.post('/login', (req, res) => {
     });
 });
 
-// Display user's recorded chapters
+//Main Page
 app.get('/', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
     }
 
     const userId = req.session.userId;
+
     const userSql = `SELECT name FROM users WHERE id = ?`;
-    const dataSql = `SELECT users.name as user_name, 
-                            chaptersmaster.book || ' ' || chaptersmaster.chapter as chapter_name,
-                            user_chapters.timestamp -- Include timestamp from user_chapters table
+    const dataSql = `SELECT users.name AS user_name, 
+                            readers.reader_name,
+                            family.family_name,
+                            chaptersmaster.book || ' ' || chaptersmaster.chapter AS chapter_name,
+                            user_chapters.timestamp
                      FROM user_chapters
                      INNER JOIN users ON user_chapters.user_id = users.id
                      INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+                     INNER JOIN readers ON user_chapters.reader_id = readers.id
+                     INNER JOIN family ON readers.family_id = family.id
                      WHERE users.id = ?`;
+
+    const readerChapterCountSql = `SELECT readers.reader_name, COUNT(user_chapters.id) AS chapter_count
+                                   FROM readers
+                                   INNER JOIN family ON readers.family_id = family.id
+                                   LEFT JOIN user_chapters ON user_chapters.reader_id = readers.id
+                                   WHERE family.user_id = ?
+                                   GROUP BY readers.id`;
+
+    // Query to get the total number of chapters across all users
+    const totalChaptersSql = `SELECT COUNT(*) AS total_chapters FROM user_chapters`;
 
     db.get(userSql, [userId], (err, userRow) => {
         if (err) {
@@ -97,20 +117,44 @@ app.get('/', (req, res) => {
             return;
         }
 
-        const userName = userRow ? userRow.name : 'Guest'; // Fallback to 'Guest' if name is not found
+        const userName = userRow ? userRow.name : 'Guest';
 
-        // Fetch the chapters recorded by the user
-        db.all(dataSql, [userId], (err, rows) => {
+        db.all(dataSql, [userId], (err, chapterRows) => {
             if (err) {
                 console.error(err.message);
                 res.status(500).send('Error retrieving data');
                 return;
             }
 
-            res.render('index', { userName, data: rows });
+            db.all(readerChapterCountSql, [userId], (err, readerCounts) => {
+                if (err) {
+                    console.error(err.message);
+                    res.status(500).send('Error retrieving reader chapter counts');
+                    return;
+                }
+
+                // Get the total chapter count across all users
+                db.get(totalChaptersSql, [], (err, totalResult) => {
+                    if (err) {
+                        console.error('Error retrieving total chapter count:', err.message);
+                        return res.status(500).send('Error retrieving total chapter count');
+                    }
+
+                    const totalChapters = totalResult ? totalResult.total_chapters : 0;
+
+                    // Render the index page with all the required data
+                    res.render('index', { 
+                        userName, 
+                        chapterRows, 
+                        readerCounts, 
+                        totalChapters  // Pass total chapter count to the template
+                    });
+                });
+            });
         });
     });
 });
+
 
 // Render the record page with collapsible chapters list
 app.get('/record', (req, res) => {
@@ -119,34 +163,48 @@ app.get('/record', (req, res) => {
     }
 
     const userId = req.session.userId;
-    const userSql = `SELECT name FROM users WHERE id = ?`;
+    // SQL to get the readers associated with the user's family
+    const familySql = `SELECT family.id FROM family WHERE user_id = ?`;
+    const readersSql = `SELECT readers.id, readers.reader_name 
+                        FROM readers 
+                        INNER JOIN family ON readers.family_id = family.id
+                        WHERE family.user_id = ?`;
     const chapterSql = `SELECT id, book, chapter FROM chaptersmaster ORDER BY id`;
 
-    db.get(userSql, [userId], (err, userRow) => {
-        if (err) {
-            console.error('Error retrieving user:', err.message);
-            return res.status(500).send('Error retrieving user');
+    // Get the user's family ID
+    db.get(familySql, [userId], (err, familyRow) => {
+        if (err || !familyRow) {
+            console.error('Error retrieving family:', err.message);
+            return res.status(500).send('Error retrieving family');
         }
 
-        const userName = userRow ? userRow.name : 'Guest';
-
-        db.all(chapterSql, [], (err, chapters) => {
+        // Fetch all readers in the family
+        db.all(readersSql, [userId], (err, readers) => {
             if (err) {
-                console.error('Error retrieving chapters:', err.message);
-                return res.status(500).send('Error retrieving chapters');
+                console.error('Error retrieving readers:', err.message);
+                return res.status(500).send('Error retrieving readers');
             }
 
-            // Group chapters by book
-            const chaptersByBook = {};
-            chapters.forEach(chapter => {
-                const book = chapter.book.trim();
-                if (!chaptersByBook[book]) {
-                    chaptersByBook[book] = [];
+            // Fetch chapters for the form
+            db.all(chapterSql, [], (err, chapters) => {
+                if (err) {
+                    console.error('Error retrieving chapters:', err.message);
+                    return res.status(500).send('Error retrieving chapters');
                 }
-                chaptersByBook[book].push({ id: chapter.id, name: `${book} ${chapter.chapter}` });
-            });
 
-            res.render('record', { userName, chaptersByBook });
+                // Group chapters by book
+                const chaptersByBook = {};
+                chapters.forEach(chapter => {
+                    const book = chapter.book.trim();
+                    if (!chaptersByBook[book]) {
+                        chaptersByBook[book] = [];
+                    }
+                    chaptersByBook[book].push({ id: chapter.id, name: `${book} ${chapter.chapter}` });
+                });
+
+                // Render the record page with readers and chapters
+                res.render('record', { userName: req.session.userName, readers, chaptersByBook });
+            });
         });
     });
 });
@@ -158,14 +216,19 @@ app.post('/record', (req, res) => {
     }
 
     const userId = req.session.userId;
+    const readerId = req.body.readerId;
     const startChapter = req.body.startChapterId;
     const endChapter = req.body.endChapterId;
     const bookName = req.body.bookName;
 
-    console.log(`Received form submission: Book - ${bookName}, Start Chapter - ${startChapter}, End Chapter - ${endChapter}`);
+    console.log(`Received form submission: Reader ID - ${readerId}, Book - ${bookName}, Start Chapter - ${startChapter}, End Chapter - ${endChapter}`);
     if (!bookName) {
         return res.status(400).send('Book name is missing.');
     }
+    if (!readerId || !startChapter || !endChapter) {
+        return res.status(400).send('Missing required data.');
+    }
+
     const startChapterId = parseInt(startChapter);
     const endChapterId = parseInt(endChapter);
 
@@ -174,7 +237,7 @@ app.post('/record', (req, res) => {
         return res.status(400).send('Invalid chapter range.');
     }
 
-    const sql = `INSERT INTO user_chapters (user_id, chapter_id) VALUES (?, ?)`;
+    const sql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
     const stmt = db.prepare(sql);
 
     let pendingOperations = 0;
@@ -192,7 +255,7 @@ app.post('/record', (req, res) => {
                 hasErrorOccurred = true;
             } else if (row) {
                 console.log(`Found chapter ID for ${chapterName}: ${row.id}`); // Log found chapter ID
-                stmt.run([userId, row.id], (err) => {
+                stmt.run([userId, readerId, row.id], (err) => {
                     if (err) {
                         console.error(`Error inserting chapter ${chapterId}:`, err.message);
                         hasErrorOccurred = true;
@@ -233,7 +296,100 @@ app.get('/admin', (req, res) => {
 
 });
 
+app.get('/manage', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
 
+    const userId = req.session.userId;
+    
+    const userSql = `SELECT name FROM users WHERE id = ?`;
+    db.get(userSql, [userId], (err, userRow) => {
+        if (err) {
+            console.error(err.message);
+            return res.status(500).send('Error retrieving user');
+        }
+
+    const userName = userRow ? userRow.name : 'Guest';
+
+    // Fetch the family group for the logged-in user
+    const familySql = `SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name
+                       FROM family
+                       LEFT JOIN readers ON family.id = readers.family_id
+                       WHERE family.user_id = ?`;
+
+    db.all(familySql, [userId], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving family group:', err.message);
+            return res.status(500).send('Error retrieving family group');
+        }
+
+        // If the family group exists, pass it to the view, otherwise set up a blank form for creating a family
+        if (rows.length > 0) {
+            const family = rows[0]; // All readers belong to the same family
+            const readers = rows.map(row => ({ id: row.reader_id, name: row.reader_name }));
+            res.render('manage', { userName, family, readers });
+        } else {
+            res.render('manage', { userName, family: null, readers: [] });
+        }
+    });
+    });
+});
+
+// Handle form submission for adding a reader
+app.post('/addReader', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { familyId, readerName } = req.body;
+
+    // Insert a new reader associated with the logged-in user's family
+    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
+
+    db.run(insertReaderSql, [familyId, readerName], function (err) {
+        if (err) {
+            console.error('Error adding reader:', err.message);
+            return res.status(500).send('Error adding reader');
+        }
+        console.log(`Added new reader with ID ${this.lastID}`);
+        res.redirect('/manage');
+    });
+});
+
+// Handle form submission for creating a family
+app.post('/createFamily', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { familyName } = req.body;
+
+    // Insert a new family for the logged-in user
+    const createFamilySql = `INSERT INTO family (user_id, family_name) VALUES (?, ?)`;
+
+    db.run(createFamilySql, [userId, familyName], function (err) {
+        if (err) {
+            console.error('Error creating family:', err.message);
+            return res.status(500).send('Error creating family');
+        }
+        console.log(`Created new family with ID ${this.lastID}`);
+        res.redirect('/manage');
+    });
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Error destroying session:', err);
+            return res.status(500).send('Error logging out.');
+        }
+        res.redirect('/login');
+    });
+});
 
 // Start the server
 app.listen(port, () => {
