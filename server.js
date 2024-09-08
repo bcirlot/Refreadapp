@@ -4,6 +4,7 @@ const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const path = require('path');
+require('dotenv').config();
 const crypto = require('crypto'); // To generate unique tokens
 const nodemailer = require('nodemailer'); // To send emails
 const app = express();
@@ -30,8 +31,8 @@ const transporter = nodemailer.createTransport({
     port: 465, // or 587 for TLS
     secure: true, // use SSL
     auth: {
-        user: 'reformationreading@thesquarechurch.com', // Your Zoho email address
-        pass: 'Semper$!2' // Your Zoho email password
+        user: process.env.ZOHO_USER, // Your Zoho email address from .env
+        pass: process.env.ZOHO_PASS  // Your Zoho email password from .env
     },
     //debug: true, // Add this line to enable debug output
     //logger: true
