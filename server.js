@@ -15,13 +15,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.sqlite' }), // Specify the SQLite database for sessions
-    secret: 'your_secret_key', // Use a secure secret key
+    store: new SQLiteStore({ db: 'sessions.sqlite' }),
+    secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: false, // Only save session if there is data
+    saveUninitialized: false,
     cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000, // Session will expire in 24 hours
-        secure: false, // Set to true if using HTTPS
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: false,
     }
 }));
 
@@ -31,8 +31,8 @@ const transporter = nodemailer.createTransport({
     port: 465, // or 587 for TLS
     secure: true, // use SSL
     auth: {
-        user: process.env.ZOHO_USER, // Your Zoho email address from .env
-        pass: process.env.ZOHO_PASS  // Your Zoho email password from .env
+        user: process.env.ZOHO_USER, 
+        pass: process.env.ZOHO_PASS 
     },
 });
 
