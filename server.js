@@ -244,50 +244,63 @@ app.post('/reset-password/:token', (req, res) => {
 app.get('/', (req, res) => {
     const isLoggedIn = req.session.userId !== undefined;
 
-    // Total number of Bible chapters (Protestant canon)
-    const totalBibleChapters = 1189;
+    const totalBibleChapters = 1189; // Total chapters in the Bible
 
-    // SQL to get the total chapters read across all users
+    // SQL query to get the total chapters read across all users
     const totalChaptersSql = `SELECT COUNT(*) as total FROM user_chapters`;
 
-    // SQL to get the distinct chapters read by all users
-    const distinctChaptersSql = `SELECT COUNT(DISTINCT chapter_id) AS distinct_chapters_read FROM user_chapters`;
+    // SQL query to get the number of times each chapter has been read
+    const chapterReadsSql = `
+        SELECT chapter_id, COUNT(chapter_id) AS times_read
+        FROM user_chapters
+        GROUP BY chapter_id`;
 
-    // Always fetch the total chapters across all users
+    // Fetch total chapters read across all users
     db.get(totalChaptersSql, (err, totalRow) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error retrieving total chapters');
         }
 
-        const totalChapters = totalRow.total;
+        const totalChaptersRead = totalRow.total; // Total chapters read across all users
 
-        // Fetch distinct chapters read to calculate progress
-        db.get(distinctChaptersSql, (err, distinctRow) => {
+        // Fetch the number of times each chapter has been read
+        db.all(chapterReadsSql, (err, rows) => {
             if (err) {
                 console.error(err.message);
-                return res.status(500).send('Error retrieving distinct chapters read');
+                return res.status(500).send('Error retrieving chapter reads');
             }
 
-            const distinctChaptersRead = distinctRow.distinct_chapters_read;
+            // Initialize an array to store the number of times each chapter has been read
+            let timesReadArray = new Array(totalBibleChapters).fill(0);
 
-            // Calculate Bible completions and progress toward the next completion
-            const completions = Math.floor(distinctChaptersRead / totalBibleChapters);
-            const remainingChaptersForNextCompletion = distinctChaptersRead % totalBibleChapters;
+            // Populate the timesReadArray with the number of reads for each chapter
+            rows.forEach(row => {
+                timesReadArray[row.chapter_id - 1] = row.times_read;  // Subtract 1 because array index starts from 0
+            });
+
+            // Find the minimum number of times any chapter has been read
+            const minReads = Math.min(...timesReadArray);
+
+            // Calculate how many complete sets of the Bible have been read
+            const completions = minReads;
+
+            // Calculate how many chapters have been read toward the next complete set
+            const remainingChaptersForNextCompletion = timesReadArray.reduce((sum, reads) => sum + (reads > minReads ? 1 : 0), 0);
+
+            // Progress toward the next complete set (in percentage)
             const progressPercentage = (remainingChaptersForNextCompletion / totalBibleChapters) * 100;
 
-            // If the user is not logged in, render the view with just the totalChapters and progress
             if (!isLoggedIn) {
                 return res.render('index', {
                     userName: null,
                     readerCounts: [],
                     chapterRows: [],
-                    totalChapters,
+                    totalChaptersRead, // Total chapters read across all users
                     completions, // Number of full Bible completions
-                    distinctChaptersRead,
                     remainingChaptersForNextCompletion,
                     totalBibleChapters,
-                    progressPercentage: progressPercentage.toFixed(2), // Display 2 decimal points
+                    progressPercentage: progressPercentage.toFixed(2),
                     isLoggedIn: false
                 });
             }
@@ -319,7 +332,6 @@ app.get('/', (req, res) => {
 
                 const userName = userRow ? userRow.name : 'Guest';
 
-                // Get readers' counts and chapter details only if the user is logged in
                 db.all(readersSql, [userId], (err, readerCounts) => {
                     if (err) {
                         console.error(err.message);
@@ -336,12 +348,11 @@ app.get('/', (req, res) => {
                             userName,
                             readerCounts,
                             chapterRows,
-                            totalChapters,
+                            totalChaptersRead, // Total chapters read across all users
                             completions, // Number of full Bible completions
-                            distinctChaptersRead,
                             remainingChaptersForNextCompletion,
                             totalBibleChapters,
-                            progressPercentage: progressPercentage.toFixed(2), // Display 2 decimal points
+                            progressPercentage: progressPercentage.toFixed(2),
                             isLoggedIn: true
                         });
                     });
@@ -350,6 +361,8 @@ app.get('/', (req, res) => {
         });
     });
 });
+
+
 
 
 app.get('/unread-chapters', (req, res) => {
