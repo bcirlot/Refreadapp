@@ -5,8 +5,8 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const path = require('path');
 require('dotenv').config();
-const crypto = require('crypto'); // To generate unique tokens
-const nodemailer = require('nodemailer'); // To send emails
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const app = express();
 const port = 3000;
 
@@ -34,8 +34,6 @@ const transporter = nodemailer.createTransport({
         user: process.env.ZOHO_USER, // Your Zoho email address from .env
         pass: process.env.ZOHO_PASS  // Your Zoho email password from .env
     },
-    //debug: true, // Add this line to enable debug output
-    //logger: true
 });
 
 // Verify the transporter connection
@@ -188,7 +186,7 @@ app.post('/forgot-password', (req, res) => {
                     console.error('Error sending email:', err.message);
                     return res.status(500).send('Error sending email');
                 }
-                res.send('Password reset link has been sent to your email');
+                res.send('Password reset link has been sent to your email. <a href="/" >Return to home</a>');
             });
         });
     });

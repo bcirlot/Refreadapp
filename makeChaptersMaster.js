@@ -1,3 +1,11 @@
+//This script created the chaptersmaster table the first time from the csv "bibletaxonomy.csv"
+//The problem was the that csv lists the bible by verse, whereas we needed it
+//to be listed by chapter. So this script takes that input and outputs the database
+//of chapters giving each chapter a unique id based on order of chapters in the bible
+//it also gives the book name, chaper number, verse count, and textament for each 
+//chapter in the whole bible. There are 1189 rows. I also exported this database 
+//as biblechapters.csv for ease of use in the future.
+
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const csv = require('csv-parser');
@@ -42,18 +50,13 @@ function createChaptersTable() {
     });
 }
 function insertChaptersFromCSV() {
-    const filePath = 'bibletaxonomy.csv'; // Update with the correct path
-
-    // Create an empty object to store chapters and count verses
+    const filePath = 'bibletaxonomy.csv';
     const chapters = {};
-
-    // Read the CSV file
     fs.createReadStream(filePath)
         .pipe(csv({
-            mapHeaders: ({ header, index }) => header.trim() // Ensure headers are trimmed
+            mapHeaders: ({ header, index }) => header.trim()
         }))
         .on('data', (row) => {
-            // Trim values and log each key-value pair for debugging
             const Book = row['Book']?.trim();
             const Chapter = row['Chapter']?.trim();
             const Verse = row['Verse']?.trim();
@@ -61,7 +64,6 @@ function insertChaptersFromCSV() {
                 console.error('Invalid row format:', row);
                 return; // Skip invalid rows
             }
-
             const chapterKey = `${Book}-${Chapter}`; // Unique key for each book-chapter combo
 
             // If the chapter already exists in the object, increment the verse count
