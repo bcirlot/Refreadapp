@@ -8,7 +8,9 @@ require('dotenv').config();
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
+const multer = require('multer');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const csvParser = require('csv-parser');
 const app = express();
 const port = 3000;
 
@@ -676,55 +678,49 @@ function fetchFamilyGroup(userId, context, res) {
 }
 app.get('/export-chapters-csv', (req, res) => {
     if (req.session.role !== 'admin') {
-        return res.status(403).send('Forbidden'); // Only allow admins
+        return res.status(403).send('Unauthorized');
     }
 
-    const exportSql = `SELECT * FROM user_chapters`; // Simple query to get all records from user_chapters table
+    const sql = `SELECT * FROM user_chapters`;
 
-    db.all(exportSql, [], (err, rows) => {
+    db.all(sql, [], (err, rows) => {
         if (err) {
-            console.error('Error retrieving chapters for export:', err.message);
-            return res.status(500).send('Error exporting chapters');
+            console.error(err.message);
+            return res.status(500).send('Error retrieving user chapters');
         }
 
-        // Create the CSV writer
+        // Get current timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+        // Define the filename with the timestamp and set a directory path for saving
+        const filename = `user_chapters_${timestamp}.csv`;
+        const filePath = path.join(__dirname, 'backups', filename); // Store in an "exports" directory
+
+        // Define the CSV writer
         const csvWriter = createCsvWriter({
-            path: './backups/user_chapters_backups/user_chapters_export.csv', // Path to save the CSV file
+            path: filePath,
             header: [
-                { id: 'id', title: 'ID' },
-                { id: 'user_id', title: 'User ID' },
-                { id: 'reader_id', title: 'Reader ID' },
-                { id: 'chapter_id', title: 'Chapter ID' },
-                { id: 'timestamp', title: 'Timestamp' }
+                { id: 'id', title: 'id' },
+                { id: 'user_id', title: 'user_id' },
+                { id: 'reader_id', title: 'reader_id' },
+                { id: 'chapter_id', title: 'chapter_id' },
+                { id: 'timestamp', title: 'timestamp' }
             ]
         });
 
-        // Write the data to the CSV file
+        // Write CSV file to the server
         csvWriter.writeRecords(rows)
             .then(() => {
-                console.log('CSV file written successfully');
-
-                // Send the file as a download
-                res.download('./backups/user_chapters_backups/user_chapters_export.csv', 'user_chapters_export.csv', (err) => {
-                    if (err) {
-                        console.error('Error sending the CSV file:', err.message);
-                    }
-
-                    // Optionally delete the file after sending it
-                    // fs.unlink('./user_chapters_export.csv', (err) => {
-                    //     if (err) {
-                    //         console.error('Error deleting the CSV file:', err.message);
-                    //     }
-                    // });
-                });
+                console.log(`CSV file written successfully to ${filePath}`);
+                // Send JSON response to trigger alert on the client
+                res.json({ success: true, message: `CSV file saved at ${filePath}` });
             })
-            .catch((error) => {
-                console.error('Error writing CSV file:', error);
-                res.status(500).send('Error exporting CSV');
+            .catch(err => {
+                console.error('Error writing CSV file:', err.message);
+                res.status(500).json({ success: false, message: 'Error writing CSV file' });
             });
     });
 });
-
 
 // Handle form submission for adding a reader
 app.post('/addReader', (req, res) => {
@@ -779,6 +775,62 @@ app.get('/logout', (req, res) => {
         }
         res.redirect('/');
     });
+});
+
+// Configure multer for file uploads
+const upload = multer({
+    dest: 'uploads/' // This directory will store uploaded files temporarily
+});
+
+// Handle CSV uploads to restore user chapters
+app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
+    if (!req.session.userId || req.session.role !== 'admin') {
+        return res.status(403).send('Unauthorized');
+    }
+
+    const filePath = path.join(__dirname, req.file.path);
+
+    // Initialize an empty array to store parsed CSV data
+    const csvData = [];
+
+    // Read the CSV file and parse its contents
+    fs.createReadStream(filePath)
+        .pipe(csvParser())
+        .on('data', (row) => {
+            csvData.push(row); // Push each row of data to the array
+        })
+        .on('end', () => {
+            console.log('CSV file successfully processed:', csvData);
+
+            // Insert CSV data back into the user_chapters table
+            const insertSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id, timestamp) VALUES (?, ?, ?, ?)`;
+            const stmt = db.prepare(insertSql);
+
+            csvData.forEach((row) => {
+                stmt.run([row.user_id, row.reader_id, row.chapter_id, row.timestamp], (err) => {
+                    if (err) {
+                        console.error('Error inserting row into user_chapters:', err.message);
+                    }
+                });
+            });
+
+            stmt.finalize((err) => {
+                if (err) {
+                    console.error('Error finalizing statement:', err.message);
+                    return res.status(500).send('Error restoring data');
+                }
+
+                // Clean up the uploaded file
+                fs.unlink(filePath, (err) => {
+                    if (err) {
+                        console.error('Error deleting uploaded file:', err.message);
+                    }
+                });
+
+                // Send a success response
+                res.send('CSV file successfully uploaded and user chapters restored.');
+            });
+        });
 });
 
 // Start the server

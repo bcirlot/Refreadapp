@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Chapters</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        // Function to export the user chapters and handle the response
+        function exportUserChapters() {
+            fetch('/export-chapters-csv')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message); // Show alert with the message
+                        window.location.href = '/manage'; // Redirect back to the manage page
+                    } else {
+                        alert('Error saving the CSV file.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while exporting the CSV.');
+                });
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -52,8 +71,11 @@
                         }
                     </script>
                     <!-- Button to export CSV -->
-                    <form action="/export-chapters-csv" method="GET">
-                        <button type="submit">Export as CSV</button>
+                    <button onclick="exportUserChapters()">Export User Chapters</button>
+                    <h3>Upload CSV to Restore User Chapters:</h3>
+                    <form action="/upload-user-chapters" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="csvFile" accept=".csv" required>
+                        <button type="submit">Upload CSV</button>
                     </form>
                     <h3>All Users' Chapters:</h3>
                     <table>
