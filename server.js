@@ -7,6 +7,8 @@ const path = require('path');
 require('dotenv').config();
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const app = express();
 const port = 3000;
 
@@ -94,6 +96,7 @@ app.post('/login', (req, res) => {
             if (isMatch) {
                 req.session.userId = user.id;
                 req.session.userName = user.name;
+                req.session.role = user.role;
                 res.redirect('/');
             } else {
                 res.render('login', { error: 'Invalid email or password.' });
@@ -585,21 +588,71 @@ app.get('/manage', (req, res) => {
     }
 
     const userId = req.session.userId;
-    
+    const userRole = req.session.role;
     const userSql = `SELECT name FROM users WHERE id = ?`;
+
     db.get(userSql, [userId], (err, userRow) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error retrieving user');
         }
 
-    const userName = userRow ? userRow.name : 'Guest';
+        const userName = userRow ? userRow.name : 'Guest';
+        const context = { userName, isAdmin: false }; // Context to pass to the view
 
-    // Fetch the family group for the logged-in user
+        // If the user is an admin, fetch all users' chapters
+        if (userRole === 'admin') {
+            const allUsersChaptersSql = `
+    SELECT family.family_name, 
+           readers.reader_name,
+           COUNT(user_chapters.id) as total_chapters_read
+    FROM user_chapters
+    INNER JOIN readers ON user_chapters.reader_id = readers.id
+    INNER JOIN family ON readers.family_id = family.id
+    GROUP BY readers.reader_name, family.family_name
+    ORDER BY total_chapters_read DESC
+`;
+
+            db.all(allUsersChaptersSql, [], (err, chapters) => {
+                if (err) {
+                    console.error(err.message);
+                    return res.status(500).send('Error retrieving chapters for all users');
+                }
+                context.chapters = chapters;
+                context.isAdmin = true;
+
+                // Now fetch the family group for the logged-in user
+                fetchFamilyGroup(userId, context, res);
+            });
+        } else {
+            // For non-admin users, directly fetch the family group
+            fetchFamilyGroup(userId, context, res);
+        }
+    });
+});
+
+app.post('/clear-chapters', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).send('Forbidden'); // Only allow admins
+    }
+
+    const clearChaptersSql = `DELETE FROM user_chapters`;
+
+    db.run(clearChaptersSql, (err) => {
+        if (err) {
+            console.error('Error clearing user_chapters table:', err.message);
+            return res.status(500).send('Error clearing chapters');
+        }
+        console.log('user_chapters table cleared');
+        res.redirect('/manage'); // Redirect back to the manage page
+    });
+});
+// Helper function to fetch the family group
+function fetchFamilyGroup(userId, context, res) {
     const familySql = `SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name
-                       FROM family
-                       LEFT JOIN readers ON family.id = readers.family_id
-                       WHERE family.user_id = ?`;
+                        FROM family
+                        LEFT JOIN readers ON family.id = readers.family_id
+                        WHERE family.user_id = ?`;
 
     db.all(familySql, [userId], (err, rows) => {
         if (err) {
@@ -607,17 +660,71 @@ app.get('/manage', (req, res) => {
             return res.status(500).send('Error retrieving family group');
         }
 
-        // If the family group exists, pass it to the view, otherwise set up a blank form for creating a family
         if (rows.length > 0) {
             const family = rows[0]; // All readers belong to the same family
             const readers = rows.map(row => ({ id: row.reader_id, name: row.reader_name }));
-            res.render('manage', { userName, family, readers });
+            context.family = family;
+            context.readers = readers;
         } else {
-            res.render('manage', { userName, family: null, readers: [] });
+            context.family = null;
+            context.readers = [];
         }
+
+        // Finally, render the `manage` view with the full context
+        res.render('manage', context);
     });
+}
+app.get('/export-chapters-csv', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).send('Forbidden'); // Only allow admins
+    }
+
+    const exportSql = `SELECT * FROM user_chapters`; // Simple query to get all records from user_chapters table
+
+    db.all(exportSql, [], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving chapters for export:', err.message);
+            return res.status(500).send('Error exporting chapters');
+        }
+
+        // Create the CSV writer
+        const csvWriter = createCsvWriter({
+            path: './backups/user_chapters_backups/user_chapters_export.csv', // Path to save the CSV file
+            header: [
+                { id: 'id', title: 'ID' },
+                { id: 'user_id', title: 'User ID' },
+                { id: 'reader_id', title: 'Reader ID' },
+                { id: 'chapter_id', title: 'Chapter ID' },
+                { id: 'timestamp', title: 'Timestamp' }
+            ]
+        });
+
+        // Write the data to the CSV file
+        csvWriter.writeRecords(rows)
+            .then(() => {
+                console.log('CSV file written successfully');
+
+                // Send the file as a download
+                res.download('./backups/user_chapters_backups/user_chapters_export.csv', 'user_chapters_export.csv', (err) => {
+                    if (err) {
+                        console.error('Error sending the CSV file:', err.message);
+                    }
+
+                    // Optionally delete the file after sending it
+                    // fs.unlink('./user_chapters_export.csv', (err) => {
+                    //     if (err) {
+                    //         console.error('Error deleting the CSV file:', err.message);
+                    //     }
+                    // });
+                });
+            })
+            .catch((error) => {
+                console.error('Error writing CSV file:', error);
+                res.status(500).send('Error exporting CSV');
+            });
     });
 });
+
 
 // Handle form submission for adding a reader
 app.post('/addReader', (req, res) => {

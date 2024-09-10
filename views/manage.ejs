@@ -9,32 +9,77 @@
 <body>
     <div class="container">
         <div id="maincontent">
-        <h1>Manage Family Group</h1>
+            <div id="manageFamily">
+                <h1>Manage Family Group</h1>
 
-        <% if (family) { %>
-            <h2>Family: <%= family.family_name %></h2>
+                <% if (family) { %>
+                    <h2>Family: <%= family.family_name %></h2>
 
-            <h3>Readers in the Family:</h3>
-            <ul>
-                <% readers.forEach(function(reader) { %>
-                    <li><%= reader.name %></li>
-                <% }); %>
-            </ul>
+                    <h3>Readers in the Family:</h3>
+                    <ul>
+                        <% readers.forEach(function(reader) { %>
+                            <li><%= reader.name %></li>
+                        <% }); %>
+                    </ul>
 
-            <h3>Add a New Reader:</h3>
-            <form action="/addReader" method="POST">
-                <input type="hidden" name="familyId" value="<%= family.family_id %>">
-                <input type="text" name="readerName" placeholder="Reader's Name" required>
-                <button type="submit">Add Reader</button>
-            </form>
-        <% } else { %>
-            <h2>Create Your Family Group:</h2>
-            <form action="/createFamily" method="POST">
-                <input type="text" name="familyName" placeholder="Family Name" required>
-                <button type="submit">Create Family</button>
-            </form>
-        <% } %>
+                    <h3>Add a New Reader:</h3>
+                    <form action="/addReader" method="POST">
+                        <input type="hidden" name="familyId" value="<%= family.family_id %>">
+                        <input type="text" name="readerName" placeholder="Reader's Name" required>
+                        <button type="submit">Add Reader</button>
+                    </form>
+                <% } else { %>
+                    <h2>Create Your Family Group:</h2>
+                    <form action="/createFamily" method="POST">
+                        <input type="text" name="familyName" placeholder="Family Name" required>
+                        <button type="submit">Create Family</button>
+                    </form>
+                <% } %>
+            </div>
+            <% if (isAdmin) { %>
+                <div id="adminConsole">
+                    <h2>Admin Console</h2>
+                    <span>Admin Actions:</span><!-- Button to clear user chapters -->
+                    <form id="clearChaptersForm" action="/clear-chapters" method="POST">
+                        <button type="button" onclick="confirmClearChapters()">Clear All User Chapters</button>
+                    </form>
+
+                    <script>
+                        function confirmClearChapters() {
+                            if (confirm("Are you sure you want to clear all user chapters? This action cannot be undone.")) {
+                                document.getElementById('clearChaptersForm').submit();
+                            }
+                        }
+                    </script>
+                    <!-- Button to export CSV -->
+                    <form action="/export-chapters-csv" method="GET">
+                        <button type="submit">Export as CSV</button>
+                    </form>
+                    <h3>All Users' Chapters:</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Family</th>
+                                <th>Reader</th>
+                                <th>Chapter</th>
+                            
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% chapters.forEach(function(chapter) { %>
+                                <tr>
+                                    <td><%= chapter.family_name %></td>
+                                    <td><%= chapter.reader_name %></td>
+                                    <td><%= chapter.chapter_name %></td>
+                                    <td><%= chapter.total_chapters_read %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
         </div>
+            
         <div id="sidebar">
             <h2>User: <%= userName %>!</h2>
             <a href="/record">Record a Chapter</a>

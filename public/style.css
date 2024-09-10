@@ -5,7 +5,12 @@
     display: flex;
     justify-content: space-between; /* Distribute the items (maincontent and sidebar) */
 }
-
+#adminConsole {
+    margin: 5px;
+    background: lightgrey;
+    padding: 10px;
+    border: 2px black solid;
+}
 /* General container styling */
 .book-container {
     margin-bottom: 20px;
