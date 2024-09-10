@@ -11,6 +11,7 @@ const fs = require('fs');
 const multer = require('multer');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
+const { execSync } = require('child_process');
 const app = express();
 const port = 3000;
 
@@ -633,21 +634,23 @@ app.get('/manage', (req, res) => {
     });
 });
 
+
+function runScriptSync(scriptName) {
+    try {
+        console.log(`Running ${scriptName}...`);
+        const output = execSync(`node ${scriptName}`, { stdio: 'inherit' });
+        console.log(`Finished running ${scriptName}`);
+    } catch (error) {
+        console.error(`Error executing ${scriptName}:`, error.message);
+    }
+}
 app.post('/clear-chapters', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).send('Forbidden'); // Only allow admins
     }
 
-    const clearChaptersSql = `DELETE FROM user_chapters`;
-
-    db.run(clearChaptersSql, (err) => {
-        if (err) {
-            console.error('Error clearing user_chapters table:', err.message);
-            return res.status(500).send('Error clearing chapters');
-        }
-        console.log('user_chapters table cleared');
-        res.redirect('/manage'); // Redirect back to the manage page
-    });
+    runScriptSync('makeUserChapters.js');
+    console.log('All scripts have been executed.');
 });
 // Helper function to fetch the family group
 function fetchFamilyGroup(userId, context, res) {
