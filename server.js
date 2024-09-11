@@ -1,3 +1,4 @@
+//Setup
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const session = require('express-session');
@@ -13,12 +14,14 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { execSync } = require('child_process');
 const app = express();
+const expressLayouts = require('express-ejs-layouts');
 const port = 3000;
 
-// Middleware for parsing request bodies and handling sessions
+//app.* stuff
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-
+app.use(expressLayouts);
+app.set('layout', 'layout');
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.sqlite' }),
     secret: process.env.SESSION_SECRET,
@@ -29,31 +32,12 @@ app.use(session({
         secure: false,
     }
 }));
-
-// Create a transporter for Zoho Mail
-const transporter = nodemailer.createTransport({
-    host: 'smtp.zoho.com',
-    port: 465, // or 587 for TLS
-    secure: true, // use SSL
-    auth: {
-        user: process.env.ZOHO_USER, 
-        pass: process.env.ZOHO_PASS 
-    },
+app.use((req, res, next) => {
+    res.locals.isLoggedIn = req.session && req.session.userId;
+    res.locals.userName = req.session ? req.session.userName : '';
+    next();
 });
-
-// Verify the transporter connection
-transporter.verify((error, success) => {
-    if (error) {
-        console.error('Error with transporter setup:', error);
-    } else {
-        console.log('Nodemailer is ready to send emails');
-    }
-});
-
-// Set static folder for serving static files
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Set up view engine for EJS
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
@@ -66,12 +50,28 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     console.log('Connected to the SQLite database.');
 });
 
-// Render the login page
+// Mail stuff for password change
+const transporter = nodemailer.createTransport({
+    host: 'smtp.zoho.com',
+    port: 465, 
+    secure: true, 
+    auth: {
+        user: process.env.ZOHO_USER, 
+        pass: process.env.ZOHO_PASS 
+    },
+});
+transporter.verify((error, success) => {
+    if (error) {
+        console.error('Error with transporter setup:', error);
+    } else {
+        console.log('Nodemailer is ready to send emails');
+    }
+});
+
+// User Login/Register Routes
 app.get('/login', (req, res) => {
     res.render('login', { error: null });
 });
-
-// Handle login form submission
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
 
@@ -87,8 +87,6 @@ app.post('/login', (req, res) => {
             res.render('login', { error: 'Invalid email or password.' });
             return;
         }
-
-        // Compare the entered password with the stored hashed password
         bcrypt.compare(password, user.password, (err, isMatch) => {
             if (err) {
                 console.error(err.message);
@@ -107,26 +105,26 @@ app.post('/login', (req, res) => {
         });
     });
 });
-
-
-// Route to handle user registration
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Error destroying session:', err);
+            return res.status(500).send('Error logging out.');
+        }
+        res.redirect('/');
+    });
+});
 app.post('/register', (req, res) => {
     const { name, email, password } = req.body;
-
-    // Check if the email is already registered
     const checkEmailSql = `SELECT * FROM users WHERE email = ?`;
     db.get(checkEmailSql, [email], (err, row) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error checking email');
         }
-
         if (row) {
-            // If the email is already registered, show an error message
             return res.render('login', { error: 'Email already in use. Please log in.' });
         }
-
-        // Hash the password
         bcrypt.hash(password, 10, (err, hashedPassword) => {
             if (err) {
                 console.error(err.message);
@@ -151,12 +149,9 @@ app.post('/register', (req, res) => {
         });
     });
 });
-
-// Render the forgot password page
 app.get('/forgot-password', (req, res) => {
     res.render('forgot-password', { error: null });
 });
-
 app.post('/forgot-password', (req, res) => {
     const { email } = req.body;
     const token = crypto.randomBytes(20).toString('hex');
@@ -197,8 +192,6 @@ app.post('/forgot-password', (req, res) => {
         });
     });
 });
-
-
 app.get('/reset-password/:token', (req, res) => {
     const { token } = req.params;
     
@@ -213,7 +206,6 @@ app.get('/reset-password/:token', (req, res) => {
         res.render('reset-password', { token, error: null });
     });
 });
-
 app.post('/reset-password/:token', (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
@@ -367,45 +359,13 @@ app.get('/', (req, res) => {
         });
     });
 });
-
-
-
-
-app.get('/unread-chapters', (req, res) => {
-    const unreadChaptersSql = `
-        SELECT chaptersmaster.book, chaptersmaster.chapter
-        FROM chaptersmaster
-        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
-        WHERE user_chapters.chapter_id IS NULL
-        ORDER BY chaptersmaster.id 
-    `;
-
-    db.all(unreadChaptersSql, [], (err, unreadRows) => {
-        if (err) {
-            console.error('Error fetching unread chapters:', err.message);
-            return res.status(500).send('Error retrieving unread chapters');
-        }
-
-        // Group unread chapters by book
-        const unreadChaptersByBook = {};
-        unreadRows.forEach(row => {
-            const book = row.book.trim();
-            if (!unreadChaptersByBook[book]) {
-                unreadChaptersByBook[book] = [];
-            }
-            unreadChaptersByBook[book].push(row.chapter);
-        });
-
-        res.render('unread-chapters', { unreadChaptersByBook });
-    });
-});
-
 app.get('/bible-progress', (req, res) => {
     const allChaptersSql = `
         SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
-               CASE WHEN user_chapters.chapter_id IS NOT NULL THEN 1 ELSE 0 END as is_read
+               CASE WHEN MAX(user_chapters.chapter_id) IS NOT NULL THEN 1 ELSE 0 END as is_read
         FROM chaptersmaster
         LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+        GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
         ORDER BY chaptersmaster.id  -- Maintain Bible order
     `;
 
@@ -437,14 +397,6 @@ app.get('/bible-progress', (req, res) => {
         });
     });
 });
-
-
-
-
-
-
-
-// Render the record page with collapsible chapters list
 app.get('/record', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -497,8 +449,6 @@ app.get('/record', (req, res) => {
         });
     });
 });
-
-// Handle form submission for recording chapters
 app.post('/record', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -587,11 +537,6 @@ app.post('/record', (req, res) => {
         });
     }
 });
-
-app.get('/admin', (req, res) => {
-
-});
-
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -640,26 +585,6 @@ app.get('/manage', (req, res) => {
         }
     });
 });
-
-
-function runScriptSync(scriptName) {
-    try {
-        console.log(`Running ${scriptName}...`);
-        const output = execSync(`node ${scriptName}`, { stdio: 'inherit' });
-        console.log(`Finished running ${scriptName}`);
-    } catch (error) {
-        console.error(`Error executing ${scriptName}:`, error.message);
-    }
-}
-app.post('/clear-chapters', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).send('Forbidden'); // Only allow admins
-    }
-
-    runScriptSync('makeUserChapters.js');
-    console.log('All scripts have been executed.');
-});
-// Helper function to fetch the family group
 function fetchFamilyGroup(userId, context, res) {
     const familySql = `SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name
                         FROM family
@@ -685,6 +610,105 @@ function fetchFamilyGroup(userId, context, res) {
         // Finally, render the `manage` view with the full context
         res.render('manage', context);
     });
+}
+app.post('/addReader', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { familyId, readerName } = req.body;
+
+    // Insert a new reader associated with the logged-in user's family
+    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
+    const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
+    db.run(insertReaderSql, [familyId, readerName], function (err) {
+        if (err) {
+            console.error('Error adding reader:', err.message);
+            return res.status(500).send('Error adding reader');
+        }
+        console.log(`Added new reader with ID ${this.lastID}`);
+        db.get(findNewReaderSql, [familyId, readerName],(err, row) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send('Error retrieving reader id');
+            }
+            const readerId = row.id;
+            addPoints(readerId, 50);
+        });
+        res.redirect('/manage');
+    });
+});
+app.post('/createFamily', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { familyName } = req.body;
+
+    // Insert a new family for the logged-in user
+    const createFamilySql = `INSERT INTO family (user_id, family_name) VALUES (?, ?)`;
+
+    db.run(createFamilySql, [userId, familyName], function (err) {
+        if (err) {
+            console.error('Error creating family:', err.message);
+            return res.status(500).send('Error creating family');
+        }
+        console.log(`Created new family with ID ${this.lastID}`);
+        res.redirect('/manage');
+    });
+});
+
+//Not in use at the moment
+app.get('/unread-chapters', (req, res) => {
+    const unreadChaptersSql = `
+        SELECT chaptersmaster.book, chaptersmaster.chapter
+        FROM chaptersmaster
+        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+        WHERE user_chapters.chapter_id IS NULL
+        ORDER BY chaptersmaster.id 
+    `;
+
+    db.all(unreadChaptersSql, [], (err, unreadRows) => {
+        if (err) {
+            console.error('Error fetching unread chapters:', err.message);
+            return res.status(500).send('Error retrieving unread chapters');
+        }
+
+        // Group unread chapters by book
+        const unreadChaptersByBook = {};
+        unreadRows.forEach(row => {
+            const book = row.book.trim();
+            if (!unreadChaptersByBook[book]) {
+                unreadChaptersByBook[book] = [];
+            }
+            unreadChaptersByBook[book].push(row.chapter);
+        });
+
+        res.render('unread-chapters', { unreadChaptersByBook });
+    });
+});
+app.get('/admin', (req, res) => {
+});
+
+//Administration stuff
+app.post('/clear-chapters', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).send('Forbidden'); // Only allow admins
+    }
+
+    runScriptSync('makeUserChapters.js');
+    console.log('All scripts have been executed.');
+});
+function runScriptSync(scriptName) {
+    try {
+        console.log(`Running ${scriptName}...`);
+        const output = execSync(`node ${scriptName}`, { stdio: 'inherit' });
+        console.log(`Finished running ${scriptName}`);
+    } catch (error) {
+        console.error(`Error executing ${scriptName}:`, error.message);
+    }
 }
 app.get('/export-chapters-csv', (req, res) => {
     if (req.session.role !== 'admin') {
@@ -731,76 +755,9 @@ app.get('/export-chapters-csv', (req, res) => {
             });
     });
 });
-
-// Handle form submission for adding a reader
-app.post('/addReader', (req, res) => {
-    if (!req.session.userId) {
-        return res.redirect('/login');
-    }
-
-    const userId = req.session.userId;
-    const { familyId, readerName } = req.body;
-
-    // Insert a new reader associated with the logged-in user's family
-    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
-    const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
-    db.run(insertReaderSql, [familyId, readerName], function (err) {
-        if (err) {
-            console.error('Error adding reader:', err.message);
-            return res.status(500).send('Error adding reader');
-        }
-        console.log(`Added new reader with ID ${this.lastID}`);
-        db.get(findNewReaderSql, [familyId, readerName],(err, row) => {
-            if (err) {
-                console.error(err.message);
-                return res.status(500).send('Error retrieving reader id');
-            }
-            const readerId = row.id;
-            addPoints(readerId, 50);
-        });
-        res.redirect('/manage');
-    });
-});
-
-// Handle form submission for creating a family
-app.post('/createFamily', (req, res) => {
-    if (!req.session.userId) {
-        return res.redirect('/login');
-    }
-
-    const userId = req.session.userId;
-    const { familyName } = req.body;
-
-    // Insert a new family for the logged-in user
-    const createFamilySql = `INSERT INTO family (user_id, family_name) VALUES (?, ?)`;
-
-    db.run(createFamilySql, [userId, familyName], function (err) {
-        if (err) {
-            console.error('Error creating family:', err.message);
-            return res.status(500).send('Error creating family');
-        }
-        console.log(`Created new family with ID ${this.lastID}`);
-        res.redirect('/manage');
-    });
-});
-
-// Logout route
-app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            console.error('Error destroying session:', err);
-            return res.status(500).send('Error logging out.');
-        }
-        res.redirect('/');
-    });
-});
-
-// Configure multer for file uploads
 const upload = multer({
     dest: 'uploads/' // This directory will store uploaded files temporarily
 });
-
-// Handle CSV uploads to restore user chapters
 app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
     if (!req.session.userId || req.session.role !== 'admin') {
         return res.status(403).send('Unauthorized');
@@ -851,6 +808,7 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
         });
 });
 
+//Gamification Components
 function addPoints(readerId, pointsToAdd) {
     // First, check if the user already has an entry in the userpoints table
     const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
