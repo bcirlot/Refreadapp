@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reformation Reading App</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/stylesheets/style.css">
+</head>
+<body>
+
+    <!-- Bootstrap Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">Reading Tracker</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <% if (isLoggedIn) { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/record">Record a Chapter</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/manage">Manage Family</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout">Logout</a>
+                    </li>
+                <% } else { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">Login</a>
+                    </li>
+                <% } %>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <!-- Content from specific pages will be injected here -->
+        <%- body %>
+    </div>
+
+    <!-- JavaScript for Modal -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var modal = document.getElementById('bibleProgressModal');
+            var modalContent = document.getElementById('bibleProgressContainer');
+            var closeBtn = document.getElementsByClassName('close')[0];
+            var openLink = document.getElementById('openBibleProgress');
+
+            // When the user clicks on the Bible Progress link, open the modal
+            openLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Fetch the Bible progress content dynamically
+                fetch('/bible-progress')
+                    .then(response => response.text())
+                    .then(data => {
+                        modalContent.innerHTML = data; // Inject content into the modal
+                        modal.style.display = 'block'; // Show the modal
+                    })
+                    .catch(error => console.error('Error loading Bible progress:', error));
+            });
+
+            // When the user clicks on the close button, close the modal
+            closeBtn.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+
+            // When the user clicks anywhere outside the modal, close it
+            window.addEventListener('click', function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+    </script>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Function to export the user chapters and handle the response
+        function exportUserChapters() {
+            fetch('/export-chapters-csv')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message); // Show alert with the message
+                        window.location.href = '/manage'; // Redirect back to the manage page
+                    } else {
+                        alert('Error saving the CSV file.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while exporting the CSV.');
+                });
+        }
+    </script>
+</body>
+</html>
