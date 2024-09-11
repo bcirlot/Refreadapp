@@ -1,14 +1,47 @@
-<div class="container">
+<div class="container-fluid mt-5">
+    <div class="legend d-flex justify-content-center mb-3">
+        <div class="legend-item d-flex align-items-center mr-3">
+            <div class="legend-box bg-success" style="width: 20px; height: 20px; margin-right: 5px;"></div>
+            <span>Read</span>
+        </div>
+        <div class="legend-item d-flex align-items-center">
+            <div class="legend-box bg-light" style="width: 20px; height: 20px; margin-right: 5px; border: 1px solid #ccc;"></div>
+            <span>Unread</span>
+        </div>
+    </div>
     <% for (let book in chaptersByBook) { %>
-        <div class="book-container">
-            <div class="book-title"><%= book %></div>
-            <div class="book">
+        <div class="book-container mb-4">
+            <h3 class="book-title text-center mb-3"><%= book %></h3>
+            <div class="row d-flex flex-wrap">
                 <% chaptersByBook[book].forEach(function(chapter) { %>
-                    <div class="chapter-container <%= chapter.isRead ? 'read' : 'unread' %>">
-                        <%= chapter.chapter %>
+                    <div class="chapter-wrapper" style="margin: 1px;">
+                        <div class="chapter-container card <%= chapter.isRead ? 'bg-success text-white' : 'bg-light' %>" style="height: 30px; width: 30px;">
+                            <div class="card-body d-flex justify-content-center align-items-center p-0">
+                                <span class="chapter-number" style="font-size: 0.7rem;"><%= chapter.chapter %></span>
+                            </div>
+                        </div>
                     </div>
                 <% }); %>
             </div>
         </div>
     <% } %>
 </div>
+<style>
+    .chapter-wrapper {
+    display: inline-block;
+    margin: 1px; /* Tight space between cards */
+}
+
+.chapter-container {
+    height: 30px;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chapter-number {
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+</style>

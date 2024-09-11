@@ -5,7 +5,7 @@
         <h3>Progress toward the next completion: <%= progressPercentage %> %</h3>
         <h4>Chapters remaining for next completion: <%= totalBibleChapters - remainingChaptersForNextCompletion %> of <%= totalBibleChapters %></h4>
         <div class="my-4">
-            <a href="#" id="openBibleProgress" class="btn btn-primary">View Bible Progress</a>
+            <a href="/bible-progress" class="btn btn-primary">View Bible Progress</a>
         </div>
             <% if (isLoggedIn) { %>
                 <h2>Chapter Counts by Reader</h2>
@@ -54,15 +54,8 @@
                 <p>Please <a href="/login">log in</a> to track your reading progress.</p>
             <% } %>
             
-            <!-- Modal for Bible Progress -->
-            <div id="bibleProgressModal" class="modal">
-                <div class="modal-content">
-                    <span class="close">&times;</span>
-                    <div id="bibleProgressContainer">
-                        <!-- Bible progress content will be loaded here -->
-                    </div>
-                </div>
-            </div>
+         
+            
         </div>
     </div>
 
