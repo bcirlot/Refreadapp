@@ -4,21 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Chapters</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div id="maincontent">  
+    <div class="container mt-5">
+        <div id="maincontent" class="text-center">  
             <h2>Total Chapters Read: <%= totalChaptersRead %></h2>
             <h2>Total Bible Completions: <%= completions %></h2>
-<h3>Progress toward the next completion: <%= progressPercentage %> %</h3>
-<h4>Chapters remaining for next completion: <%= totalBibleChapters - remainingChaptersForNextCompletion %> of <%= totalBibleChapters %></h4>
-            <a href="/unread-chapters">What needs to be read?</a>
-            <a href="#" id="openBibleProgress">View Bible Progress</a>
+            <h3>Progress toward the next completion: <%= progressPercentage %> %</h3>
+            <h4>Chapters remaining for next completion: <%= totalBibleChapters - remainingChaptersForNextCompletion %> of <%= totalBibleChapters %></h4>
+            <div class="my-4">
+                <a href="/unread-chapters" class="btn btn-primary">What needs to be read?</a>
+                <a href="#" id="openBibleProgress" class="btn btn-info">View Bible Progress</a>
+            </div>
             <% if (isLoggedIn) { %>
                 <h2>Chapter Counts by Reader</h2>
-                <table border="1">
-                    <thead>
+                <table class="table table-bordered">
+                    <thead class="thead-dark">
                         <tr>
                             <th>Reader Name</th>
                             <th>Total Chapters</th>
@@ -119,5 +122,9 @@
         });
     </script>
     </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>

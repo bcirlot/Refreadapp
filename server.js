@@ -528,6 +528,7 @@ app.post('/record', (req, res) => {
 
     const sql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
     const stmt = db.prepare(sql);
+    let pointsToAdd = 0;  // Track the total points to add
 
     let pendingOperations = 0;
     let hasErrorOccurred = false;
@@ -548,8 +549,9 @@ app.post('/record', (req, res) => {
                     if (err) {
                         console.error(`Error inserting chapter ${chapterId}:`, err.message);
                         hasErrorOccurred = true;
-                    }
+                    } 
                 });
+                pointsToAdd++;
             } else {
                 console.error(`Chapter ${chapterName} not found.`);
                 hasErrorOccurred = true;
@@ -573,6 +575,11 @@ app.post('/record', (req, res) => {
             if (hasErrorOccurred) {
                 console.log('Some errors occurred during the process.');
                 return res.status(500).send('Error occurred while recording some chapters.');
+            }
+
+            if (pointsToAdd > 0) {
+                // Call addPoints once with the total points to add
+                addPoints(readerId, pointsToAdd);
             }
 
             console.log('Chapters successfully recorded.');
@@ -736,13 +743,21 @@ app.post('/addReader', (req, res) => {
 
     // Insert a new reader associated with the logged-in user's family
     const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
-
+    const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
     db.run(insertReaderSql, [familyId, readerName], function (err) {
         if (err) {
             console.error('Error adding reader:', err.message);
             return res.status(500).send('Error adding reader');
         }
         console.log(`Added new reader with ID ${this.lastID}`);
+        db.get(findNewReaderSql, [familyId, readerName],(err, row) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send('Error retrieving reader id');
+            }
+            const readerId = row.id;
+            addPoints(readerId, 50);
+        });
         res.redirect('/manage');
     });
 });
@@ -835,6 +850,44 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
             });
         });
 });
+
+function addPoints(readerId, pointsToAdd) {
+    // First, check if the user already has an entry in the userpoints table
+    const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
+
+    db.get(checkSql, [readerId], (err, row) => {
+        if (err) {
+            console.error("Error checking for existing points:", err.message);
+            return;
+        }
+
+        if (row) {
+            // If the user already has points, update the total
+            const newPoints = row.user_points + pointsToAdd;
+            const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
+
+            db.run(updateSql, [newPoints, readerId], (err) => {
+                if (err) {
+                    console.error("Error updating points:", err.message);
+                } else {
+                    console.log(`Updated points for reader ${readerId}. New total: ${newPoints}`);
+                }
+            });
+        } else {
+            // If the user doesn't have any points yet, insert a new row
+            const insertSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
+
+            db.run(insertSql, [readerId, pointsToAdd], (err) => {
+                if (err) {
+                    console.error("Error inserting new points:", err.message);
+                } else {
+                    console.log(`Inserted ${pointsToAdd} points for reader ${readerId}.`);
+                }
+            });
+        }
+    });
+}
+
 
 // Start the server
 app.listen(port, () => {

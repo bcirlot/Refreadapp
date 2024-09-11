@@ -8,6 +8,7 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     console.log('Connected to the mydatabase.db database.');
     createReadersTable();
     createFamiliesTable();
+    createUserPointsTable();
 });
 
 
@@ -36,5 +37,19 @@ function createFamiliesTable() {
            return;
        }
        console.log('Created family table.');
+   });
+}
+
+function createUserPointsTable() {
+    db.run(`CREATE TABLE IF NOT EXISTS userpoints (
+        reader_id INTEGER,
+        user_points INTEGER, 
+        FOREIGN KEY(reader_id) REFERENCES readers(id)
+    )`, (err) => {
+       if (err) {
+           console.error(err.message);
+           return;
+       }
+       console.log('Created userpoints table.');
    });
 }
