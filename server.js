@@ -13,6 +13,7 @@ const multer = require('multer');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvParser = require('csv-parser');
 const { execSync } = require('child_process');
+const flash = require('connect-flash');
 const app = express();
 const expressLayouts = require('express-ejs-layouts');
 const port = 3000;
@@ -84,6 +85,22 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
+// Setup session middleware (required for flash)
+app.use(session({
+    secret: process.env.FLASH_KEY,
+    resave: false,
+    saveUninitialized: true
+}));
+
+// Setup flash middleware
+app.use(flash());
+
+// Make flash messages available to all views
+app.use((req, res, next) => {
+    res.locals.successMessage = req.flash('success');
+    res.locals.errorMessage = req.flash('error');
+    next();
+});
 
 // Connect to the SQLite database
 let db = new sqlite3.Database('./mydatabase.db', (err) => {
@@ -187,9 +204,7 @@ app.post('/register', (req, res) => {
                 // Automatically log the user in after registration
                 req.session.userId = this.lastID;
                 req.session.userName = name;
-
-                // Redirect to the main page
-                res.redirect('/');
+                res.redirect('/manage');
             });
         });
     });
@@ -577,6 +592,8 @@ app.post('/record', (req, res) => {
             }
 
             console.log('Chapters successfully recorded.');
+            // Flash a success message
+            req.flash('success', `Thank you for reporting chapters!`);
             res.redirect('/');
         });
     }
@@ -590,6 +607,7 @@ app.get('/manage', (req, res) => {
     const userRole = req.session.role;
     const userSql = `SELECT name FROM users WHERE id = ?`;
 
+    // Fetch the logged-in user's name
     db.get(userSql, [userId], (err, userRow) => {
         if (err) {
             console.error(err.message);
@@ -602,15 +620,15 @@ app.get('/manage', (req, res) => {
         // If the user is an admin, fetch all users' chapters
         if (userRole === 'admin') {
             const allUsersChaptersSql = `
-    SELECT family.family_name, 
-           readers.reader_name,
-           COUNT(user_chapters.id) as total_chapters_read
-    FROM user_chapters
-    INNER JOIN readers ON user_chapters.reader_id = readers.id
-    INNER JOIN family ON readers.family_id = family.id
-    GROUP BY readers.reader_name, family.family_name
-    ORDER BY total_chapters_read DESC
-`;
+                SELECT family.family_name, 
+                       readers.reader_name,
+                       COUNT(user_chapters.id) as total_chapters_read
+                FROM user_chapters
+                INNER JOIN readers ON user_chapters.reader_id = readers.id
+                INNER JOIN family ON readers.family_id = family.id
+                GROUP BY readers.reader_name, family.family_name
+                ORDER BY total_chapters_read DESC
+            `;
 
             db.all(allUsersChaptersSql, [], (err, chapters) => {
                 if (err) {
@@ -629,6 +647,7 @@ app.get('/manage', (req, res) => {
         }
     });
 });
+
 function fetchFamilyGroup(userId, context, res) {
     const familySql = `
         SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name,
@@ -646,24 +665,34 @@ function fetchFamilyGroup(userId, context, res) {
             return res.status(500).send('Error retrieving family group');
         }
 
-        if (rows.length > 0) {
-            const family = rows[0]; // All readers belong to the same family
-            const readers = rows.map(row => ({
-                id: row.reader_id,
-                name: row.reader_name,
-                points: row.total_points   // Include the points for each reader
-            }));
-            context.family = family;
-            context.readers = readers;
-        } else {
+        // If no family exists, show Step 1: Create Family Group
+        if (rows.length === 0 || !rows[0].family_id) {
             context.family = null;
             context.readers = [];
+            return res.render('manage', context); // Render the view with step 1 (create family)
         }
 
-        // Finally, render the `manage` view with the full context
+        // If a family exists but no readers, show Step 2: Add a Reader
+        const family = rows[0]; // Assume all readers belong to the same family
+        const readers = rows.filter(row => row.reader_id).map(row => ({
+            id: row.reader_id,
+            name: row.reader_name,
+            points: row.total_points   // Include the points for each reader
+        }));
+
+        if (readers.length === 0) {
+            context.family = family;
+            context.readers = [];
+            return res.render('manage', context); // Render the view with step 2 (add a reader)
+        }
+
+        // If both family and readers exist, display the table of readers
+        context.family = family;
+        context.readers = readers;
         res.render('manage', context);
     });
 }
+
 app.post('/addReader', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -989,6 +1018,30 @@ app.get('/leaderboard', (req, res) => {
         res.render('leaderboard', { leaderboard: rows });
     });
 });
+app.get('/reader-reports/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+
+    // Query to get all chapters reported by this reader
+    const reportsSql = `
+        SELECT user_chapters.chapter_id, chaptersmaster.book, chaptersmaster.chapter, user_chapters.timestamp
+        FROM user_chapters
+        JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+        WHERE user_chapters.reader_id = ?
+        ORDER BY user_chapters.timestamp DESC, chaptersmaster.chapter ASC
+    `;
+
+    db.all(reportsSql, [readerId], (err, reports) => {
+        if (err) {
+            console.error('Error retrieving reports:', err.message);
+            return res.status(500).send('Error retrieving reports');
+        }
+
+        // Pass the reports data to the view
+        res.render('reader-reports', { reports });
+    });
+});
+
+
 
 
 
