@@ -1,0 +1,26 @@
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Leaderboard</h1>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Reader Name</th>
+                <th scope="col">Total Points</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% leaderboard.forEach(function(reader, index) { %>
+                <tr>
+                    <td><%= index + 1 %></td>
+                    <td><%= reader.reader_name %></td>
+                    <td><%= reader.total_points %></td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <div class="text-center mt-4">
+        <a href="/" class="btn btn-primary">Back to Home</a>
+    </div>
+</div>
