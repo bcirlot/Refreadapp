@@ -37,6 +37,52 @@ app.use((req, res, next) => {
     res.locals.userName = req.session ? req.session.userName : '';
     next();
 });
+// Middleware to calculate total points for the user's family
+app.use((req, res, next) => {
+    if (!req.session.userId) {
+        return next();  // Skip if user is not logged in
+    }
+
+    const userId = req.session.userId;
+
+    // Query to get family ID for the current user
+    const familySql = `SELECT family.id as family_id
+                       FROM family
+                       WHERE family.user_id = ?`;
+
+    db.get(familySql, [userId], (err, familyRow) => {
+        if (err) {
+            console.error('Error retrieving family:', err.message);
+            return res.status(500).send('Error retrieving family');
+        }
+
+        if (!familyRow) {
+            res.locals.totalPoints = 0;
+            return next();
+        }
+
+        const familyId = familyRow.family_id;
+
+        // Query to get total points for the user's family
+        const pointsSql = `SELECT SUM(user_points) as total_points
+                           FROM userpoints
+                           JOIN readers ON userpoints.reader_id = readers.id
+                           WHERE readers.family_id = ?`;
+
+        db.get(pointsSql, [familyId], (err, pointsRow) => {
+            if (err) {
+                console.error('Error retrieving points:', err.message);
+                res.locals.totalPoints = 0;  // Default to 0 points on error
+                return next();
+            }
+
+            // Store the total points in res.locals, making it available in all views
+            res.locals.totalPoints = pointsRow.total_points || 0;
+            next();  // Continue to the next middleware/route
+        });
+    });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -49,6 +95,7 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     }
     console.log('Connected to the SQLite database.');
 });
+
 
 // Mail stuff for password change
 const transporter = nodemailer.createTransport({
@@ -341,7 +388,6 @@ app.get('/', (req, res) => {
                             console.error(err.message);
                             return res.status(500).send('Error retrieving chapters');
                         }
-
                         res.render('index', {
                             userName,
                             readerCounts,
@@ -352,7 +398,7 @@ app.get('/', (req, res) => {
                             totalBibleChapters,
                             progressPercentage: progressPercentage.toFixed(2),
                             isLoggedIn: true
-                        });
+                        });       
                     });
                 });
             });
@@ -659,6 +705,67 @@ app.post('/createFamily', (req, res) => {
         res.redirect('/manage');
     });
 });
+app.get('/edit-reader/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+
+    const readerSql = `SELECT reader_name FROM readers WHERE id = ?`;
+    db.get(readerSql, [readerId], (err, reader) => {
+        if (err) {
+            console.error('Error fetching reader:', err.message);
+            return res.status(500).send('Error fetching reader');
+        }
+
+        if (!reader) {
+            return res.status(404).send('Reader not found');
+        }
+
+        res.render('edit-reader', { readerId, readerName: reader.reader_name });
+    });
+});
+app.post('/edit-reader/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+    const newName = req.body.readerName;
+
+    const updateReaderSql = `UPDATE readers SET reader_name = ? WHERE id = ?`;
+    db.run(updateReaderSql, [newName, readerId], function (err) {
+        if (err) {
+            console.error('Error updating reader:', err.message);
+            return res.status(500).send('Error updating reader');
+        }
+
+        // Redirect back to the manage page after updating the reader
+        res.redirect('/manage');
+    });
+});
+app.post('/delete-reader/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+
+    // Step 1: Delete all related chapters for this reader
+    const deleteChaptersSql = `DELETE FROM user_chapters WHERE reader_id = ?`;
+    db.run(deleteChaptersSql, [readerId], function(err) {
+        if (err) {
+            console.error('Error deleting chapters:', err.message);
+            return res.status(500).send('Error deleting chapters');
+        }
+
+        console.log(`Chapters for reader ID: ${readerId} deleted successfully.`);
+
+        // Step 2: Delete the reader after chapters are deleted
+        const deleteReaderSql = `DELETE FROM readers WHERE id = ?`;
+        db.run(deleteReaderSql, [readerId], function(err) {
+            if (err) {
+                console.error('Error deleting reader:', err.message);
+                return res.status(500).send('Error deleting reader');
+            }
+
+            console.log(`Reader with ID: ${readerId} deleted successfully.`);
+            res.redirect('/manage');
+        });
+    });
+});
+
+
+
 
 //Not in use at the moment
 app.get('/unread-chapters', (req, res) => {
@@ -699,6 +806,14 @@ app.post('/clear-chapters', (req, res) => {
     }
 
     runScriptSync('makeUserChapters.js');
+    console.log('All scripts have been executed.');
+});
+app.post('/clear-points', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).send('Forbidden'); // Only allow admins
+    }
+
+    runScriptSync('clearUserPoints.js');
     console.log('All scripts have been executed.');
 });
 function runScriptSync(scriptName) {

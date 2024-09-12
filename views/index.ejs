@@ -1,9 +1,19 @@
 
     <div id="maincontent" class="text-center">  
         <h2>Total Chapters Read: <%= totalChaptersRead %></h2>
-        <h2>Total Bible Completions: <%= completions %></h2>
-        <h3>Progress toward the next completion: <%= progressPercentage %> %</h3>
-        <h4>Chapters remaining for next completion: <%= totalBibleChapters - remainingChaptersForNextCompletion %> of <%= totalBibleChapters %></h4>
+        <h4>Goal: 10,000 Chapters</h4>
+            <div class="progress my-4">
+                <div class="progress-bar bg-success" role="progressbar" style="width: <%= (totalChaptersRead / 10000) * 100 %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+                    <%= Math.round((totalChaptersRead / 10000) * 100) %>%
+                </div>
+            </div>
+        <h2>Full Bibles Read: <%= completions %></h2>
+            <div class="progress my-4">
+                <div class="progress-bar bg-success" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+                    <%= progressPercentage %>%
+                </div>
+            </div>
+        <h4>Chapters remaining: <%= totalBibleChapters - remainingChaptersForNextCompletion %></h4>
         <div class="my-4">
             <a href="/bible-progress" class="btn btn-primary">View Bible Progress</a>
         </div>
@@ -30,9 +40,9 @@
                 <table class="table table-bordered">
                     <thead class="thead-dark">
                         <tr>
-                            <th>User Name</th>
+                            
                             <th>Reader Name</th>
-                            <th>Family Name</th>
+                            
                             <th>Chapter Name</th>
                             <th>Timestamp</th>
                         </tr>
@@ -40,9 +50,9 @@
                     <tbody>
                         <% chapterRows.forEach(function(row) { %>
                             <tr>
-                                <td><%= row.user_name %></td>
+                                
                                 <td><%= row.reader_name %></td>
-                                <td><%= row.family_name %></td>
+                                
                                 <td><%= row.chapter_name %></td>
                                 <td><%= row.timestamp %></td>
                             </tr>

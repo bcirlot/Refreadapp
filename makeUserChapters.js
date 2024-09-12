@@ -35,7 +35,7 @@ function createUserChaptersTable() {
         reader_id INTEGER,
        chapter_id INTEGER,
        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-       FOREIGN KEY (reader_id) REFERENCES readers(id),
+       FOREIGN KEY (reader_id) REFERENCES readers(id) ON DELETE CASCADE,
        FOREIGN KEY(user_id) REFERENCES users(id),
        FOREIGN KEY(chapter_id) REFERENCES chaptersmaster(id)
    )`, (err) => {
