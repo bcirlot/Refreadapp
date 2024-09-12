@@ -37,7 +37,6 @@ app.use((req, res, next) => {
     res.locals.userName = req.session ? req.session.userName : '';
     next();
 });
-// Middleware to calculate total points for the user's family
 app.use((req, res, next) => {
     if (!req.session.userId) {
         return next();  // Skip if user is not logged in
@@ -82,7 +81,6 @@ app.use((req, res, next) => {
         });
     });
 });
-
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -632,10 +630,15 @@ app.get('/manage', (req, res) => {
     });
 });
 function fetchFamilyGroup(userId, context, res) {
-    const familySql = `SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name
-                        FROM family
-                        LEFT JOIN readers ON family.id = readers.family_id
-                        WHERE family.user_id = ?`;
+    const familySql = `
+        SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name,
+               COALESCE(SUM(userpoints.user_points), 0) as total_points  -- Calculate points for each reader
+        FROM family
+        LEFT JOIN readers ON family.id = readers.family_id
+        LEFT JOIN userpoints ON readers.id = userpoints.reader_id
+        WHERE family.user_id = ?
+        GROUP BY readers.id
+    `;
 
     db.all(familySql, [userId], (err, rows) => {
         if (err) {
@@ -645,7 +648,11 @@ function fetchFamilyGroup(userId, context, res) {
 
         if (rows.length > 0) {
             const family = rows[0]; // All readers belong to the same family
-            const readers = rows.map(row => ({ id: row.reader_id, name: row.reader_name }));
+            const readers = rows.map(row => ({
+                id: row.reader_id,
+                name: row.reader_name,
+                points: row.total_points   // Include the points for each reader
+            }));
             context.family = family;
             context.readers = readers;
         } else {
@@ -960,6 +967,29 @@ function addPoints(readerId, pointsToAdd) {
         }
     });
 }
+app.get('/leaderboard', (req, res) => {
+    // Query to get the top 10 readers by points
+    console.log('Leaderboard route accessed');
+    const leaderboardSql = `
+        SELECT readers.reader_name, SUM(userpoints.user_points) as total_points
+        FROM userpoints
+        JOIN readers ON userpoints.reader_id = readers.id
+        GROUP BY readers.reader_name
+        ORDER BY total_points DESC
+        LIMIT 10
+    `;
+
+    db.all(leaderboardSql, [], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving leaderboard:', err.message);
+            return res.status(500).send('Error retrieving leaderboard');
+        }
+
+        // Pass the leaderboard data to the view
+        res.render('leaderboard', { leaderboard: rows });
+    });
+});
+
 
 
 // Start the server

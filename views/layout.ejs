@@ -5,17 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reformation Reading App</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    /* Ensure the footer sticks to the bottom of the page */
+        .sticky-footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #f8f9fa;
+            padding: 10px 0;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);  /* Optional: Adds a shadow effect */
+        }
+        body {
+            margin-bottom: 60px;  /* Adjust this value based on the height of your footer */
+        }
+        
+    </style>
     
 </head>
 <body>
 
     <!-- Bootstrap Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light sticky-top">
         <a class="navbar-brand" href="/">
             <img src="logo.jpeg" alt="Logo" width="30" height="30" class="d-inline-block align-top">
             Reading Tracker
         </a>
-        <span><%= totalPoints %></span>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -46,7 +60,12 @@
         <!-- Content from specific pages will be injected here -->
         <%- body %>
     </div>
-
+    <footer class="footer bg-light text-center sticky-footer">
+        <div class="container">
+            <span class="text-muted">Total Family Points: <%= totalPoints %></span>
+            <a href="/leaderboard" class="text-muted">View Leaderboard</a>
+        </div>
+    </footer>
     <!-- JavaScript for Modal -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
