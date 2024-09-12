@@ -1,56 +1,70 @@
 <div id="maincontent" class="text-center container mt-5">
     <div id="manageFamily">
-        <h1 class="mb-4">Manage Family Group</h1>
-
-        <% if (family) { %>
-            <h2 class="mb-3">Family: <%= family.family_name %></h2>
-
-            <h3>Readers in the Family:</h3>
-<table class="table table-striped mb-4">
-    <thead>
-        <tr>
-            <th scope="col">#</th>
-            <th scope="col">Reader Name</th>
-            <th scope="col">Points</th>  <!-- New column for points -->
-            <th scope="col">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        <% readers.forEach(function(reader, index) { %>
-            <tr>
-                <th scope="row"><%= index + 1 %></th>
-                <td><%= reader.name %></td>
-                <td><%= reader.points %></td>  <!-- Display the reader's points -->
-                <td>
-                    <a href="/edit-reader/<%= reader.id %>" class="btn btn-sm btn-warning">Edit</a>
-                    <form action="/delete-reader/<%= reader.id %>" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to delete this reader?');">
-                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                    </form>
-                </td>
-            </tr>
-        <% }); %>
-    </tbody>
-</table>
-
-
-
-            <h3 class="mb-3">Add a New Reader:</h3>
-            <form action="/addReader" method="POST" class="form-inline">
-                <input type="hidden" name="familyId" value="<%= family.family_id %>">
-                <div class="form-group mr-2">
-                    <input type="text" name="readerName" class="form-control" placeholder="Reader's Name" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Reader</button>
-            </form>
-        <% } else { %>
-            <h2>Create Your Family Group:</h2>
-            <form action="/createFamily" method="POST" class="form-inline">
-                <div class="form-group mr-2">
-                    <input type="text" name="familyName" class="form-control" placeholder="Family Name" required>
-                </div>
-                <button type="submit" class="btn btn-success">Create Family</button>
-            </form>
-        <% } %>
+        <div class="container">
+            <% if (!family) { %>
+                <!-- Step 1: No family exists, prompt to create a family -->
+                <h2>Step 1: Create Your Family Group</h2>
+                <p>Your family group name can be anything you want. You can use your last name or choose a "team" name for your family. Your family group doesn't have to be your actual family. You can include anyone in your family group for whom you will report their chapters.</p>
+                
+                <form action="/createFamily" method="POST">
+                    <div class="form-group">
+                        <input type="text" name="familyName" class="form-control w-50 mx-auto" placeholder="Family Name" required>
+                    </div>
+                    <button type="submit" class="btn btn-success mt-3">Create Family</button>
+                </form>
+        
+            <% } else if (family && readers.length === 0) { %>
+                <!-- Step 2: Family exists but no readers, prompt to add the first reader -->
+                <h2>Step 2: Add Yourself as the First Reader in Your Family</h2>
+                <p>Your family group has been created! Now, add yourself or a family member as the first reader to start tracking Bible chapters.</p>
+                
+                <form action="/addReader" method="POST">
+                    <input type="hidden" name="familyId" value="<%= family.family_id %>">
+                    <div class="form-group">
+                        <input type="text" name="readerName" class="form-control w-50 mx-auto" placeholder="Your Name" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Add Reader</button>
+                </form>
+        
+            <% } else { %>
+                <!-- Family and readers exist, display the list of readers -->
+                <h3>Readers in the Family:</h3>
+        <table class="table table-striped mb-4">
+            <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Reader Name</th>
+                    <th scope="col">Points</th> <!-- New Points Column -->
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% readers.forEach(function(reader, index) { %>
+                    <tr>
+                        <th scope="row"><%= index + 1 %></th>
+                        <td><%= reader.name %></td>
+                        <td><%= reader.points %></td> <!-- Display points for each reader -->
+                        <td>
+                            <a href="/edit-reader/<%= reader.id %>" class="btn btn-sm btn-warning">Edit</a>
+                            <form action="/delete-reader/<%= reader.id %>" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to delete this reader?');">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                            <a href="/reader-reports/<%= reader.id %>" class="btn btn-sm btn-info">View Reports</a>
+                        </td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+                <form action="/addReader" method="POST">
+                    <input type="hidden" name="familyId" value="<%= family.family_id %>">
+                    <div class="form-group">
+                        <input type="text" name="readerName" class="form-control w-50 mx-auto" placeholder="Reader Name" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Add Reader</button>
+                </form>
+            <% } %>
+        </div>
+        
     </div>
 
     <% if (isAdmin) { %>

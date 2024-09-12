@@ -1,0 +1,26 @@
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Reader's Reports</h1>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th scope="col">Book</th>
+                <th scope="col">Chapter</th>
+                <th scope="col">Date Reported</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% reports.forEach(function(report) { %>
+                <tr>
+                    <td><%= report.book %></td>
+                    <td><%= report.chapter %></td>
+                    <td><%= new Date(report.timestamp).toLocaleString() %></td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <div class="text-center mt-4">
+        <a href="/manage" class="btn btn-primary">Back to Manage Page</a>
+    </div>
+</div>

@@ -55,6 +55,20 @@
         </div>
     </nav>
     
+   
+        <!-- Conditionally display the success message if it exists -->
+        <% if (typeof successMessage !== 'undefined' && successMessage.length > 0) { %>
+            <div class="alert alert-success" role="alert">
+                <%= successMessage %>
+            </div>
+        <% } %>
+    
+        <!-- Conditionally display the error message if it exists -->
+        <% if (typeof errorMessage !== 'undefined' && errorMessage.length > 0) { %>
+            <div class="alert alert-danger" role="alert">
+                <%= errorMessage %>
+            </div>
+        <% } %>
 
     <div class="container mt-5">
         <!-- Content from specific pages will be injected here -->
@@ -62,7 +76,7 @@
     </div>
     <footer class="footer bg-light text-center sticky-footer">
         <div class="container">
-            <span class="text-muted">Total Family Points: <%= totalPoints %></span>
+            <span class="text-muted">Total Family Points: <% if (typeof totalPoints !== 'undefined') { %><%= totalPoints %><% } else { %>0<% } %></span>
             <a href="/leaderboard" class="text-muted">View Leaderboard</a>
         </div>
     </footer>
