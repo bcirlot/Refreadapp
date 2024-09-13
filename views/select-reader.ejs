@@ -1,0 +1,17 @@
+<div class="container">
+    <h1>Select Reader</h1>
+    <p>Select which reader you want to represent during this session:</p>
+
+    <form action="/set-active-reader" method="post">
+        <% readers.forEach(function(reader) { %>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="readerId" id="reader_<%= reader.id %>" value="<%= reader.id %>" required>
+                <label class="form-check-label" for="reader_<%= reader.id %>">
+                    <%= reader.reader_name %>
+                </label>
+            </div>
+        <% }); %>
+
+        <button type="submit" class="btn btn-primary mt-3">Set Active Reader</button>
+    </form>
+</div>

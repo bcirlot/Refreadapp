@@ -1,15 +1,21 @@
 
     <div id="maincontent" class="text-center">  
+        <% if (!isLoggedIn) { %>
+            <h1>Welcome to the Reading Tracker App!</h1>
+            <p>Please <a href="/login">log in/register</a> to track your reading progress. Checkout our <a href="/about">about page</a> for more information.</p>
+        </br>
+            <% } %>
+
         <h2>Total Chapters Read: <%= totalChaptersRead %></h2>
         <h4>Goal: 10,000 Chapters</h4>
             <div class="progress my-4">
-                <div class="progress-bar bg-success" role="progressbar" style="width: <%= (totalChaptersRead / 10000) * 100 %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (totalChaptersRead / 10000) * 100 %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
                     <%= Math.round((totalChaptersRead / 10000) * 100) %>%
                 </div>
             </div>
         <h2>Full Bibles Read: <%= completions %></h2>
             <div class="progress my-4">
-                <div class="progress-bar bg-success" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
                     <%= progressPercentage %>%
                 </div>
             </div>
@@ -59,9 +65,6 @@
                         <% }); %>
                     </tbody>
                 </table> -->
-            <% } else { %>
-                <h1>Welcome to the Reading Tracker App!</h1>
-                <p>Please <a href="/login">log in</a> to track your reading progress.</p>
             <% } %>
             
          

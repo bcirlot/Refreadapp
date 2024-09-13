@@ -38,10 +38,19 @@
             <ul class="navbar-nav ml-auto">
                 <% if (isLoggedIn) { %>
                     <li class="nav-item">
+                        <a class="nav-link" href="/about">About</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/record">Record a Chapter</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/record-by-book">Record by Book</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/manage">Manage Family</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/select-reader">Switch Reader</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/logout">Logout</a>
@@ -50,9 +59,23 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/login">Login</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/about">About</a>
+                    </li>
                 <% } %>
             </ul>
         </div>
+        <% if (isLoggedIn) { %>
+            <% if (typeof activeReaderName !== 'undefined' && activeReaderName) { %>
+                <span class="navbar-text">
+                    Active Reader: <a href="/reader-profile" class="nav-link d-inline"><%= activeReaderName %></a> | Points: <%= activeReaderPoints %>
+                </span>
+            <% } else { %>
+                <span class="navbar-text">
+                    No active reader selected
+                </span>
+            <% } %>
+        <% } %>
     </nav>
     
    
@@ -81,7 +104,7 @@
         </div>
     </footer>
     <!-- JavaScript for Modal -->
-    <script>
+    <!-- <script>
         document.addEventListener('DOMContentLoaded', function() {
             var modal = document.getElementById('bibleProgressModal');
             var modalContent = document.getElementById('bibleProgressContainer');
@@ -113,7 +136,7 @@
                 }
             });
         });
-    </script>
+    </script> -->
 
     <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

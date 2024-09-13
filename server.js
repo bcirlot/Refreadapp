@@ -82,6 +82,37 @@ app.use((req, res, next) => {
         });
     });
 });
+// Middleware to make the active reader available globally in views
+app.use((req, res, next) => {
+    // Check if the user is logged in and has an active reader selected
+    if (req.session.userId && req.session.activeReaderId) {
+        const readerSql = `
+            SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points
+            FROM readers
+            LEFT JOIN userpoints ON readers.id = userpoints.reader_id
+            WHERE readers.id = ?
+        `;
+
+        db.get(readerSql, [req.session.activeReaderId], (err, reader) => {
+            if (err) {
+                console.error('Error retrieving active reader:', err.message);
+                return next(); // Skip and continue to the next middleware or route
+            }
+
+            if (reader) {
+                // Store reader information in res.locals to be available globally in views
+                res.locals.activeReaderName = reader.reader_name;
+                res.locals.activeReaderPoints = reader.total_points;
+            }
+
+            next(); // Continue to the next middleware or route
+        });
+    } else {
+        // No active reader, just continue
+        next();
+    }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -160,12 +191,94 @@ app.post('/login', (req, res) => {
                 req.session.userId = user.id;
                 req.session.userName = user.name;
                 req.session.role = user.role;
-                res.redirect('/');
+                res.redirect('/select-reader');
             } else {
                 res.render('login', { error: 'Invalid email or password.' });
             }
         });
     });
+});
+app.get('/select-reader', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    // Fetch the readers for the logged-in user's family
+    const familySql = `SELECT readers.id, readers.reader_name 
+                       FROM readers 
+                       INNER JOIN family ON readers.family_id = family.id 
+                       WHERE family.user_id = ?`;
+
+    db.all(familySql, [req.session.userId], (err, readers) => {
+        if (err) {
+            console.error('Error retrieving readers:', err.message);
+            return res.status(500).send('Error retrieving readers.');
+        }
+
+        if (readers.length === 0) {
+            return res.redirect('/create-family'); // Redirect if no readers exist
+        }
+
+        // Render the select reader page
+        res.render('select-reader', { readers });
+    });
+});
+app.get('/reader-profile', (req, res) => {
+    const readerId = req.session.activeReaderId;
+
+    if (!readerId) {
+        return res.redirect('/select-reader');
+    }
+
+    // Fetch reader's points and current level
+    const readerSql = `
+        SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points, levels.level_name, levels.min_points
+        FROM readers
+        LEFT JOIN userpoints ON readers.id = userpoints.reader_id
+        LEFT JOIN levels ON readers.current_level_id = levels.id
+        WHERE readers.id = ?
+    `;
+
+    db.get(readerSql, [readerId], (err, readerData) => {
+        if (err || !readerData) {
+            console.error("Error fetching reader data:", err.message);
+            return res.status(500).send('Error retrieving reader profile');
+        }
+
+        const totalPoints = readerData.total_points;
+        const currentLevelName = readerData.level_name;
+        const currentMinPoints = readerData.min_points;
+
+        // Fetch the next level info
+        const nextLevelSql = `SELECT level_name, min_points FROM levels WHERE min_points > ? ORDER BY min_points ASC LIMIT 1`;
+        db.get(nextLevelSql, [totalPoints], (err, nextLevel) => {
+            let nextLevelPoints = nextLevel ? nextLevel.min_points : currentMinPoints;  // If no next level, keep current
+            let progressPercentage = Math.min((totalPoints - currentMinPoints) / (nextLevelPoints - currentMinPoints) * 100, 100);
+
+            res.render('reader-profile', {
+                readerName: readerData.reader_name,
+                readerTotalPoints: totalPoints,
+                level: currentLevelName,
+                progressPercentage: Math.round(progressPercentage),
+                nextLevelPoints,
+                currentMinPoints
+            });
+        });
+    });
+});
+
+app.post('/set-active-reader', (req, res) => {
+    const readerId = req.body.readerId;
+
+    if (!readerId) {
+        return res.status(400).send('Please select a reader.');
+    }
+
+    // Set the active reader in the session
+    req.session.activeReaderId = readerId;
+
+    // Redirect to the dashboard or the homepage
+    res.redirect('/');
 });
 app.get('/logout', (req, res) => {
     req.session.destroy((err) => {
@@ -598,6 +711,134 @@ app.post('/record', (req, res) => {
         });
     }
 });
+app.get('/record-by-book', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const familySql = `SELECT family.id FROM family WHERE user_id = ?`;
+    const readersSql = `SELECT readers.id, readers.reader_name 
+                        FROM readers 
+                        INNER JOIN family ON readers.family_id = family.id
+                        WHERE family.user_id = ?`;
+    
+    // Fetch distinct books without sorting alphabetically, using the natural order in the database
+    const booksSql = `SELECT DISTINCT book FROM chaptersmaster ORDER BY id`;
+
+    // Get the user's family ID
+    db.get(familySql, [userId], (err, familyRow) => {
+        if (err || !familyRow) {
+            console.error('Error retrieving family:', err.message);
+            return res.status(500).send('Error retrieving family');
+        }
+
+        // Fetch all readers in the family
+        db.all(readersSql, [userId], (err, readers) => {
+            if (err) {
+                console.error('Error retrieving readers:', err.message);
+                return res.status(500).send('Error retrieving readers');
+            }
+
+            // Fetch all books in the order they appear in the chaptersmaster table
+            db.all(booksSql, [], (err, books) => {
+                if (err) {
+                    console.error('Error retrieving books:', err.message);
+                    return res.status(500).send('Error retrieving books');
+                }
+
+                // Render the record-by-book page with readers and books
+                res.render('record-by-book', { userName: req.session.userName, readers, books });
+            });
+        });
+    });
+});
+app.post('/record-by-book', (req, res) => {
+    const userId = req.session.userId; // Assuming userId is stored in the session
+    const readerId = req.body.readerId;
+    let bookNames = req.body['bookName[]'];
+
+    // Check if bookNames is not an array (if only one book is selected)
+    if (!Array.isArray(bookNames)) {
+        bookNames = [bookNames];  // Convert single string to an array
+    }
+
+    console.log('readerId:', readerId);
+    console.log('bookNames:', bookNames);
+    console.log('bookNames length:', bookNames.length);
+
+    if (!readerId || !bookNames || bookNames.length === 0) {
+        return res.status(400).send('Missing required data.');
+    }
+
+    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
+    const addPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
+    
+    const stmt = db.prepare(insertChapterSql); // Prepare the statement for inserting chapters
+
+    let totalPointsToAdd = 0;
+    let pendingOperations = 0;
+    let hasErrorOccurred = false;
+
+    // Iterate over the bookNames array
+    bookNames.forEach(bookName => {
+        console.log('Processing book:', bookName);
+        
+        // Fetch all chapters for the book
+        db.all(`SELECT id, chapter FROM chaptersmaster WHERE book = ?`, [bookName], (err, chapters) => {
+            if (err) {
+                console.error(`Error retrieving chapters for ${bookName}:`, err.message);
+                hasErrorOccurred = true;
+                return;
+            }
+
+            pendingOperations += chapters.length;
+
+            // Insert each chapter into the user_chapters table
+            chapters.forEach(chapter => {
+                stmt.run([userId, readerId, chapter.id], (err) => {
+                    if (err) {
+                        console.error(`Error inserting chapter ${chapter.chapter} for ${bookName}:`, err.message);
+                        hasErrorOccurred = true;
+                    } else {
+                        totalPointsToAdd++; // Increment points for each chapter successfully added
+                    }
+
+                    pendingOperations--;
+
+                    if (pendingOperations === 0) {
+                        finalizeTransaction();
+                    }
+                });
+            });
+        });
+    });
+
+    function finalizeTransaction() {
+        stmt.finalize((err) => {
+            if (err) {
+                console.error('Error finalizing chapter insert statement:', err.message);
+                return res.status(500).send('Error recording chapters.');
+            }
+
+            if (hasErrorOccurred) {
+                console.log('Some errors occurred during the process.');
+                return res.status(500).send('Error occurred while recording some chapters.');
+            }
+
+            if (totalPointsToAdd > 0) {
+                // Add the total points to the userpoints table
+                addPoints(readerId, totalPointsToAdd);
+                console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
+                req.flash('success', `Thank you for reporting chapters!`);
+                res.redirect('/');
+
+            } else {
+                res.redirect('/');
+            }
+        });
+    }
+});
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -647,7 +888,6 @@ app.get('/manage', (req, res) => {
         }
     });
 });
-
 function fetchFamilyGroup(userId, context, res) {
     const familySql = `
         SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name,
@@ -689,10 +929,10 @@ function fetchFamilyGroup(userId, context, res) {
         // If both family and readers exist, display the table of readers
         context.family = family;
         context.readers = readers;
+        context.activeReader = context.activeReader || null;
         res.render('manage', context);
     });
 }
-
 app.post('/addReader', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -800,8 +1040,10 @@ app.post('/delete-reader/:readerId', (req, res) => {
     });
 });
 
-
-
+//Static Pages
+app.get('/about', (req, res) => {
+    res.render('about');
+});
 
 //Not in use at the moment
 app.get('/unread-chapters', (req, res) => {
@@ -971,15 +1213,16 @@ function addPoints(readerId, pointsToAdd) {
         }
 
         if (row) {
-            // If the user already has points, update the total
+            // If the user already has points, calculate the new total points
             const newPoints = row.user_points + pointsToAdd;
             const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
-
+            console.log(`New total points: ${newPoints}`);
             db.run(updateSql, [newPoints, readerId], (err) => {
                 if (err) {
                     console.error("Error updating points:", err.message);
                 } else {
                     console.log(`Updated points for reader ${readerId}. New total: ${newPoints}`);
+                    updateReaderLevel(readerId, newPoints);
                 }
             });
         } else {
@@ -991,6 +1234,27 @@ function addPoints(readerId, pointsToAdd) {
                     console.error("Error inserting new points:", err.message);
                 } else {
                     console.log(`Inserted ${pointsToAdd} points for reader ${readerId}.`);
+                    updateReaderLevel(readerId, pointsToAdd);
+                }
+            });
+        }
+    });
+}
+function updateReaderLevel(readerId, totalPoints) {
+    // Fetch the level that corresponds to the reader's total points
+    const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
+
+    db.get(levelSql, [totalPoints], (err, level) => {
+        if (err) {
+            console.error('Error fetching level:', err.message);
+        } else if (level) {
+            // Update the reader's level in the readers table
+            const updateLevelSql = `UPDATE readers SET current_level_id = ? WHERE id = ?`;
+            db.run(updateLevelSql, [level.id, readerId], (err) => {
+                if (err) {
+                    console.error('Error updating reader level:', err.message);
+                } else {
+                    console.log(`Updated reader ${readerId} to level: ${level.level_name}`);
                 }
             });
         }
@@ -1040,10 +1304,6 @@ app.get('/reader-reports/:readerId', (req, res) => {
         res.render('reader-reports', { reports });
     });
 });
-
-
-
-
 
 // Start the server
 app.listen(port, () => {

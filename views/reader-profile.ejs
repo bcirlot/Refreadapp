@@ -1,0 +1,19 @@
+<div class="profile">
+    <h1><%= readerName %>'s Profile</h1>
+    <p>Total Points: <%= readerTotalPoints %></p>
+    <h3>Level: <%= level %></h3>
+    <span class="badge badge-success"><%= level %></span>
+    
+    <!-- Progress bar toward the next level -->
+    <div class="mt-4">
+        <h4>Progress to Next Level</h4>
+        <div class="progress">
+            <div class="progress-bar" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= progressPercentage %>" aria-valuemin="0" aria-valuemax="100">
+                <%= progressPercentage %>%
+            </div>
+        </div>
+        <p><%= readerTotalPoints %> / <%= nextLevelPoints %> points</p>
+    </div>
+</div>
+
+

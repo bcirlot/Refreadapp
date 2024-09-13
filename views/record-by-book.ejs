@@ -1,0 +1,50 @@
+<div class="container mt-4">
+    <h1>Record by Book</h1>
+    
+    <form action="/record-by-book" method="post" id="recordBookForm">
+        <div class="form-group">
+            <label for="readerId">Select Reader:</label>
+            <select id="readerId" name="readerId" class="form-control" required>
+                <% readers.forEach(function(reader) { %>
+                    <option value="<%= reader.id %>"><%= reader.reader_name %></option>
+                <% }); %>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Select Book(s):</label>
+            <div class="form-check">
+                <% books.forEach(function(book, index) { %>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="bookName[]" id="book_<%= index %>" value="<%= book.book %>">
+                        <label class="form-check-label" for="book_<%= index %>">
+                            <%= book.book %>
+                        </label>
+                    </div>
+                <% }); %>
+            </div>
+            <small class="form-text text-muted">Check the box next to each book you want to record.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Record Book(s)</button>
+    </form>
+</div>
+
+<!-- Include JavaScript at the end of the page -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const recordBookForm = document.getElementById('recordBookForm');
+    
+    if (recordBookForm) {
+        recordBookForm.addEventListener('submit', function(e) {
+            const checkedBooks = document.querySelectorAll('input[name="bookName[]"]:checked');
+            console.log('Checked Books:', checkedBooks); // Debugging statement
+            if (checkedBooks.length === 0) {
+                e.preventDefault();
+                alert('Please select at least one book.');
+            }
+        });
+    }
+});
+
+</script>
