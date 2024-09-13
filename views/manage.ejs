@@ -1,5 +1,6 @@
 <div id="maincontent" class="text-center container mt-5">
     <div id="manageFamily">
+        
         <div class="container">
             <% if (!family) { %>
                 <!-- Step 1: No family exists, prompt to create a family -->
@@ -27,6 +28,7 @@
                 </form>
             
             <% } else if (family && readers.length > 0 && !activeReader) { %>
+            
                 <!-- Step 3: Family and readers exist but no active reader is selected, prompt to select one -->
                 <h2>Step 3: Select Yourself as the Active Reader</h2>
                 <p>Now that your family and readers have been created, select the reader you will be representing.</p>

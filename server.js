@@ -892,7 +892,7 @@ app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
     }
-
+    const activeReader = req.session.activeReaderId || null;
     const userId = req.session.userId;
     const userRole = req.session.role;
     const userSql = `SELECT name FROM users WHERE id = ?`;
@@ -905,7 +905,7 @@ app.get('/manage', (req, res) => {
         }
 
         const userName = userRow ? userRow.name : 'Guest';
-        const context = { userName, isAdmin: false }; // Context to pass to the view
+        const context = { userName, isAdmin: false, activeReader }; // Context to pass to the view
 
         // If the user is an admin, fetch all users' chapters
         if (userRole === 'admin') {
