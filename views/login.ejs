@@ -13,6 +13,10 @@
                         <label for="password">Password:</label>
                         <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
                     </div>
+                    <div>
+                        <input type="checkbox" id="showPassword" onclick="togglePassword()"> 
+                        <label for="showPassword">Show Password</label>
+                    </div>
                     <% if (error) { %>
                         <p class="text-danger"><%= error %></p>
                     <% } %>
@@ -46,3 +50,13 @@
         </div>
     </div>
 </div>
+<script>
+    function togglePassword() {
+        const passwordInput = document.getElementById('password');
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+        } else {
+            passwordInput.type = 'password';
+        }
+    }
+    </script>

@@ -266,7 +266,48 @@ app.get('/reader-profile', (req, res) => {
         });
     });
 });
+app.get('/reader-progress', (req, res) => {
+    const activeReaderId = req.session.activeReaderId; // Assuming active reader ID is stored in the session
 
+    const allChaptersSql = `
+        SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
+               CASE WHEN MAX(user_chapters.chapter_id) IS NOT NULL THEN 1 ELSE 0 END as is_read
+        FROM chaptersmaster
+        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+                               AND user_chapters.reader_id = ?  -- Filter by the active reader
+        GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
+        ORDER BY chaptersmaster.id  -- Maintain Bible order
+    `;
+
+    db.all(allChaptersSql, [activeReaderId], (err, chapters) => {
+        if (err) {
+            console.error('Error fetching Bible chapters:', err.message);
+            return res.status(500).send('Error retrieving Bible progress');
+        }
+
+        // Group chapters by book
+        const chaptersByBook = {};
+        chapters.forEach(row => {
+            const book = row.book.trim();
+            if (!chaptersByBook[book]) {
+                chaptersByBook[book] = [];
+            }
+            chaptersByBook[book].push({
+                chapter: row.chapter,
+                isRead: row.is_read
+            });
+        });
+        
+        const readerNameSql = `SELECT reader_name FROM readers WHERE id = ?`;
+        db.get(readerNameSql, activeReaderId, (err, reader) => {
+            // Render only the progress view without the layout
+            res.render('reader-progress', { chaptersByBook, readerName: reader.reader_name }, (err, html) => {
+                res.send(html); // Return the HTML fragment for the modal
+            });
+        });
+        
+    });
+});
 app.post('/set-active-reader', (req, res) => {
     const readerId = req.body.readerId;
 
@@ -707,7 +748,7 @@ app.post('/record', (req, res) => {
             console.log('Chapters successfully recorded.');
             // Flash a success message
             req.flash('success', `Thank you for reporting chapters!`);
-            res.redirect('/');
+            res.redirect('/reader-profile');
         });
     }
 });
@@ -831,10 +872,10 @@ app.post('/record-by-book', (req, res) => {
                 addPoints(readerId, totalPointsToAdd);
                 console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
                 req.flash('success', `Thank you for reporting chapters!`);
-                res.redirect('/');
+                res.redirect('/reader-profile');
 
             } else {
-                res.redirect('/');
+                res.redirect('/reader-profile');
             }
         });
     }
