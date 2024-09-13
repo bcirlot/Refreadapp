@@ -395,7 +395,7 @@ app.post('/forgot-password', (req, res) => {
             }
 
             // Send reset email using the global transporter
-            const resetLink = `http://localhost:3000/reset-password/${token}`;
+            const resetLink = `https://refreadapp-cada9a524b5a.herokuapp.com/reset-password/${token}`;
 
             const mailOptions = {
                 from: 'reformationreading@thesquarechurch.com', // Explicitly set the sender
