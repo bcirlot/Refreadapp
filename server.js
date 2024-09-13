@@ -142,6 +142,14 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     console.log('Connected to the SQLite database.');
 });
 
+const { Pool } = require('pg');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
+
 
 // Mail stuff for password change
 const transporter = nodemailer.createTransport({
