@@ -17,7 +17,7 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
         return;
     }
     console.log('Connected to the mydatabase.db database.');
-    clearUserChaptersTable();
+    clearChaptersTable();
 });
 
 //Code for clearing if already made, creating, and populating the chaptersmaster table with all the necessary data
