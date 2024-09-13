@@ -1,0 +1,22 @@
+<h1>Admin Dashboard</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+           
+            <th>Username</th>
+            <th>Email</th>
+            <th>Role</th>
+        </tr>
+    </thead>
+    <tbody>
+        <% users.forEach(function(user) { %>
+            <tr>
+                
+                <td><%= user.name %></td>
+                <td><%= user.email %></td>
+                <td><%= user.role %></td>
+            </tr>
+        <% }); %>
+    </tbody>
+</table>

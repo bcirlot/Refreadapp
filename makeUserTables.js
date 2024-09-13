@@ -142,7 +142,10 @@ function createUserTable() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
         email TEXT,
-        password TEXT
+        password TEXT, 
+        reset_token TEXT, 
+        reset_token_expiration INTEGER, 
+        role TEXT DEFAULT 'user'
     )`, (err) => {
         if (err) {
             console.error(err.message);

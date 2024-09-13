@@ -39,6 +39,10 @@ app.use((req, res, next) => {
     next();
 });
 app.use((req, res, next) => {
+    res.locals.role = req.session.role; // Make role available in all views
+    next();
+});
+app.use((req, res, next) => {
     if (!req.session.userId) {
         return next();  // Skip if user is not logged in
     }
@@ -132,7 +136,13 @@ app.use((req, res, next) => {
     res.locals.errorMessage = req.flash('error');
     next();
 });
-
+function ensureAdmin(req, res, next) {
+    if (req.user && req.role === 'admin') {
+        next(); // Proceed if the user is an admin
+    } else {
+        res.status(403).send('Forbidden: You do not have permission to access this page');
+    }
+}
 // Connect to the SQLite database
 let db = new sqlite3.Database('./mydatabase.db', (err) => {
     if (err) {
@@ -1088,6 +1098,19 @@ app.post('/delete-reader/:readerId', (req, res) => {
         });
     });
 });
+app.get('/admin', (req, res, next) => {
+    if (req.session.role !== 'admin') {
+        return res.redirect('/');
+    } 
+    db.all('SELECT name, email, role FROM users', [],(err, users) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send('Server Error');
+        }
+        res.render('admin', { users });
+    });
+    
+});
 
 //Static Pages
 app.get('/about', (req, res) => {
@@ -1122,8 +1145,6 @@ app.get('/unread-chapters', (req, res) => {
 
         res.render('unread-chapters', { unreadChaptersByBook });
     });
-});
-app.get('/admin', (req, res) => {
 });
 
 //Administration stuff
