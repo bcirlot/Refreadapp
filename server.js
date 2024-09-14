@@ -635,11 +635,11 @@ app.get('/record', (req, res) => {
 
     const userId = req.session.userId;
     // SQL to get the readers associated with the user's family
-    const familySql = `SELECT family.id FROM family WHERE user_id = ?`;
+    const familySql = `SELECT family_id FROM users WHERE id = ?`;
     const readersSql = `SELECT readers.id, readers.reader_name 
                         FROM readers 
                         INNER JOIN family ON readers.family_id = family.id
-                        WHERE family.user_id = ?`;
+                        WHERE family.id = ?`;
     const chapterSql = `SELECT id, book, chapter FROM chaptersmaster ORDER BY id`;
 
     // Get the user's family ID
@@ -648,9 +648,10 @@ app.get('/record', (req, res) => {
             console.error('Error retrieving family:', err.message);
             return res.status(500).send('Error retrieving family');
         }
-
+        const familyId = familyRow.family_id;
+        console.log('family id is: ',familyId)
         // Fetch all readers in the family
-        db.all(readersSql, [userId], (err, readers) => {
+        db.all(readersSql, [familyId], (err, readers) => {
             if (err) {
                 console.error('Error retrieving readers:', err.message);
                 return res.status(500).send('Error retrieving readers');
@@ -776,11 +777,11 @@ app.get('/record-by-book', (req, res) => {
     }
 
     const userId = req.session.userId;
-    const familySql = `SELECT family.id FROM family WHERE user_id = ?`;
+    const familySql = `SELECT family_id FROM users WHERE id = ?`;
     const readersSql = `SELECT readers.id, readers.reader_name 
                         FROM readers 
                         INNER JOIN family ON readers.family_id = family.id
-                        WHERE family.user_id = ?`;
+                        WHERE family.id = ?`;
     
     // Fetch distinct books without sorting alphabetically, using the natural order in the database
     const booksSql = `SELECT DISTINCT book FROM chaptersmaster ORDER BY id`;
@@ -791,9 +792,10 @@ app.get('/record-by-book', (req, res) => {
             console.error('Error retrieving family:', err.message);
             return res.status(500).send('Error retrieving family');
         }
-
+        const familyId = familyRow.family_id;
+        console.log('family id is: ',familyId)
         // Fetch all readers in the family
-        db.all(readersSql, [userId], (err, readers) => {
+        db.all(readersSql, [familyId], (err, readers) => {
             if (err) {
                 console.error('Error retrieving readers:', err.message);
                 return res.status(500).send('Error retrieving readers');
