@@ -4,15 +4,39 @@
         <div class="container">
             <% if (!family) { %>
                 <!-- Step 1: No family exists, prompt to create a family -->
-                <h2>Step 1: Create Your Family Group</h2>
-                <p>Your family group name can be anything you want. You can use your last name or choose a "team" name for your family. Your family group doesn't have to be your actual family. You can include anyone in your family group for whom you will report their chapters.</p>
-            
-                <form action="/createFamily" method="POST">
-                    <div class="form-group">
-                        <input type="text" name="familyName" class="form-control w-50 mx-auto" placeholder="Family Name" required>
-                    </div>
-                    <button type="submit" class="btn btn-success mt-3">Create Family</button>
-                </form>
+                <div class="container mt-5">
+                    <h2 class="text-center">Step 1: Create Your Family Group</h2>
+                    <p class="text-center">
+                        Your family group name can be anything you want. You can use your last name or choose a "team" name for your family. Your family group doesn't have to be your actual family. You can include anyone in your family group for whom you will report their chapters.
+                    </p>
+                
+                    <!-- Create Family Form -->
+                    <form action="/createFamily" method="POST" class="mb-4">
+                        <div class="form-group row justify-content-center">
+                            <label for="familyName" class="col-sm-2 col-form-label text-right">Family Name:</label>
+                            <div class="col-sm-6">
+                                <input type="text" name="familyName" class="form-control" id="familyName" placeholder="Family Name" required>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-success mt-3">Create Family</button>
+                        </div>
+                    </form>
+                
+                    <!-- Join Family Form -->
+                    <form action="/joinFamily" method="POST">
+                        <div class="form-group row justify-content-center">
+                            <label for="familyToken" class="col-sm-2 col-form-label text-right">Enter Family Token:</label>
+                            <div class="col-sm-6">
+                                <input type="text" name="familyToken" class="form-control" id="familyToken" placeholder="Family Token" required>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary mt-3">Join Family</button>
+                        </div>
+                    </form>
+                </div>
+                
             
             <% } else if (family && readers.length === 0) { %>
                 <!-- Step 2: Family exists but no readers, prompt to add the first reader -->
@@ -84,6 +108,22 @@
                     </div>
                     <button type="submit" class="btn btn-primary mt-3">Add Reader</button>
                 </form>
+                <div class="container mt-4">
+                    <p>
+                        Share this code to allow others to join your family group:
+                        <input type="text" class="form-control w-50 d-inline" value="<%= joinToken %>" id="joinTokenInput" readonly>
+                        <button class="btn btn-primary ml-2" onclick="copyJoinToken()">Copy</button>
+                    </p>
+                </div>
+            
+                <script>
+                    function copyJoinToken() {
+                        var copyText = document.getElementById("joinTokenInput");
+                        copyText.select();
+                        document.execCommand("copy");
+                        alert("Join token copied: " + copyText.value);
+                    }
+                </script>
             <% } %>
             
         </div>

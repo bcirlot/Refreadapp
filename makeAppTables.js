@@ -33,6 +33,7 @@ function createFamiliesTable() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER, 
         family_name TEXT,
+        join_token TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )`, (err) => {
        if (err) {

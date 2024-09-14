@@ -902,12 +902,14 @@ app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
     }
+
     const activeReader = req.session.activeReaderId || null;
     const userId = req.session.userId;
     const userRole = req.session.role;
-    const userSql = `SELECT name FROM users WHERE id = ?`;
 
-    // Fetch the logged-in user's name
+    // Fetch the logged-in user's name and family_id
+    const userSql = `SELECT name, family_id FROM users WHERE id = ?`;
+
     db.get(userSql, [userId], (err, userRow) => {
         if (err) {
             console.error(err.message);
@@ -915,6 +917,7 @@ app.get('/manage', (req, res) => {
         }
 
         const userName = userRow ? userRow.name : 'Guest';
+        const familyId = userRow ? userRow.family_id : null;
         const context = { userName, isAdmin: false, activeReader }; // Context to pass to the view
 
         // If the user is an admin, fetch all users' chapters
@@ -938,46 +941,54 @@ app.get('/manage', (req, res) => {
                 context.chapters = chapters;
                 context.isAdmin = true;
 
-                // Now fetch the family group for the logged-in user
-                fetchFamilyGroup(userId, context, res);
+                // Fetch the family group for the logged-in user
+                fetchFamilyGroup(familyId, context, res);
             });
         } else {
             // For non-admin users, directly fetch the family group
-            fetchFamilyGroup(userId, context, res);
+            fetchFamilyGroup(familyId, context, res);
         }
     });
 });
-function fetchFamilyGroup(userId, context, res) {
+
+function fetchFamilyGroup(familyId, context, res) {
+    if (!familyId) {
+        // If the user doesn't have a family_id, prompt them to create a family
+        context.family = null;
+        context.readers = [];
+        return res.render('manage', context); // Render the view with step 1 (create family)
+    }
+
     const familySql = `
-        SELECT family.id as family_id, family.family_name, readers.id as reader_id, readers.reader_name,
+        SELECT family.id as family_id, family.family_name, family.join_token, readers.id as reader_id, readers.reader_name,
                COALESCE(SUM(userpoints.user_points), 0) as total_points  -- Calculate points for each reader
         FROM family
         LEFT JOIN readers ON family.id = readers.family_id
         LEFT JOIN userpoints ON readers.id = userpoints.reader_id
-        WHERE family.user_id = ?
+        WHERE family.id = ?
         GROUP BY readers.id
     `;
 
-    db.all(familySql, [userId], (err, rows) => {
+    db.all(familySql, [familyId], (err, rows) => {
         if (err) {
             console.error('Error retrieving family group:', err.message);
             return res.status(500).send('Error retrieving family group');
         }
 
-        // If no family exists, show Step 1: Create Family Group
-        if (rows.length === 0 || !rows[0].family_id) {
-            context.family = null;
-            context.readers = [];
-            return res.render('manage', context); // Render the view with step 1 (create family)
-        }
+        // If no readers exist for the family, show Step 2: Add a Reader
+        const family = rows.length > 0 ? rows[0] : null;
 
-        // If a family exists but no readers, show Step 2: Add a Reader
-        const family = rows[0]; // Assume all readers belong to the same family
         const readers = rows.filter(row => row.reader_id).map(row => ({
             id: row.reader_id,
             name: row.reader_name,
             points: row.total_points   // Include the points for each reader
         }));
+
+        if (!family) {
+            context.family = null;
+            context.readers = [];
+            return res.render('manage', context); // Render the view with step 1 (create family)
+        }
 
         if (readers.length === 0) {
             context.family = family;
@@ -989,9 +1000,11 @@ function fetchFamilyGroup(userId, context, res) {
         context.family = family;
         context.readers = readers;
         context.activeReader = context.activeReader || null;
+        context.joinToken = family.join_token; 
         res.render('manage', context);
     });
 }
+
 app.post('/addReader', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1027,19 +1040,71 @@ app.post('/createFamily', (req, res) => {
 
     const userId = req.session.userId;
     const { familyName } = req.body;
+    const token = crypto.randomBytes(20).toString('hex');
 
     // Insert a new family for the logged-in user
-    const createFamilySql = `INSERT INTO family (user_id, family_name) VALUES (?, ?)`;
+    const createFamilySql = `INSERT INTO family (user_id, family_name, join_token) VALUES (?, ?, ?)`;
 
-    db.run(createFamilySql, [userId, familyName], function (err) {
+    db.run(createFamilySql, [userId, familyName, token], function (err) {
         if (err) {
             console.error('Error creating family:', err.message);
             return res.status(500).send('Error creating family');
         }
-        console.log(`Created new family with ID ${this.lastID}`);
-        res.redirect('/manage');
+        
+        // Retrieve the family ID of the newly created family
+        const familyId = this.lastID;
+        console.log(`Created new family with ID ${familyId}`);
+
+        // Update the user's family_id in the users table
+        const updateUserFamilySql = `UPDATE users SET family_id = ? WHERE id = ?`;
+        db.run(updateUserFamilySql, [familyId, userId], function (err) {
+            if (err) {
+                console.error('Error updating user:', err.message);
+                return res.status(500).send('Error updating user');
+            }
+
+            // After updating the user, redirect to the manage page
+            res.redirect('/manage');
+        });
     });
 });
+
+app.post('/joinFamily', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { familyToken } = req.body;
+    const joinFamilySql = `SELECT * FROM family WHERE join_token = ?`;
+
+    db.get(joinFamilySql, [familyToken], (err, row) => {
+        if (err) {
+            console.error('Error joining family:', err.message);
+            return res.status(500).send('Error joining family');
+        }
+
+        if (!row) {
+            // Handle the case where no family was found with the provided token
+            console.log('No family found with that token');
+            return res.status(404).send('Family not found');
+        }
+
+        const familyId = row.id;
+        console.log(`Found family with ID ${familyId}`);
+
+        db.run('UPDATE users SET family_id = ? WHERE id = ?', [familyId, userId], (updateErr) => {
+            if (updateErr) {
+                console.error('Error updating user with family ID:', updateErr.message);
+                return res.status(500).send('Error joining family');
+            }
+
+            // Redirect to manage page after successful update
+            res.redirect('/manage');
+        });
+    });
+});
+
 app.get('/edit-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 

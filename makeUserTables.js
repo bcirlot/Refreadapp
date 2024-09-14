@@ -145,6 +145,7 @@ function createUserTable() {
         password TEXT, 
         reset_token TEXT, 
         reset_token_expiration INTEGER, 
+        family_id INTEGER,
         role TEXT DEFAULT 'user'
     )`, (err) => {
         if (err) {
