@@ -1,0 +1,39 @@
+<div class="container mt-5">
+    <h2>Manage Levels</h2>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Level Name</th>
+                <th>Level Points</th>
+                <th>Description</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% levels.forEach(function(level) { %>
+            <tr>
+                <form action="/admin/levels/update" method="POST">
+                    <td><%= level.id %></td>
+                    <td>
+                        <!-- Pre-fill the name with the current value from the database -->
+                        <input type="hidden" name="id" value="<%= level.id %>">
+                        <input type="text" name="level_name" value="<%= level.level_name %>" class="form-control" required>
+                    </td>
+                    <td>
+                        <!-- Pre-fill the description with the current value from the database -->
+                        <input type="integer" name="min_points" value="<%= level.min_points %>" class="form-control" required>
+                    </td>
+                    <td>
+                        <input type="text" name="description" value="<%= level.description %>" class="form-control" required>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </td>
+                </form>
+            </tr>
+            <% }) %>
+        </tbody>
+    </table>
+</div>

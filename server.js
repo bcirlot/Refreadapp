@@ -50,9 +50,7 @@ app.use((req, res, next) => {
     const userId = req.session.userId;
 
     // Query to get family ID for the current user
-    const familySql = `SELECT family.id as family_id
-                       FROM family
-                       WHERE family.user_id = ?`;
+    const familySql = `SELECT family_id FROM users WHERE id = ?`;
 
     db.get(familySql, [userId], (err, familyRow) => {
         if (err) {
@@ -86,7 +84,6 @@ app.use((req, res, next) => {
         });
     });
 });
-// Middleware to make the active reader available globally in views
 app.use((req, res, next) => {
     // Check if the user is logged in and has an active reader selected
     if (req.session.userId && req.session.activeReaderId) {
@@ -120,14 +117,11 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-// Setup session middleware (required for flash)
 app.use(session({
     secret: process.env.FLASH_KEY,
     resave: false,
     saveUninitialized: true
 }));
-
-// Setup flash middleware
 app.use(flash());
 
 // Make flash messages available to all views
@@ -151,7 +145,6 @@ let db = new sqlite3.Database('./mydatabase.db', (err) => {
     }
     console.log('Connected to the SQLite database.');
 });
-
 const { Pool } = require('pg');
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -159,8 +152,6 @@ const pool = new Pool({
         rejectUnauthorized: false
     }
 });
-
-
 // Mail stuff for password change
 const transporter = nodemailer.createTransport({
     host: 'smtp.zoho.com',
@@ -248,9 +239,10 @@ app.get('/reader-profile', (req, res) => {
         return res.redirect('/select-reader');
     }
 
-    // Fetch reader's points and current level
+    // Fetch reader's points, current level, level_id, and description
     const readerSql = `
-        SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points, levels.level_name, levels.min_points
+        SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points, 
+               levels.level_name, levels.min_points, levels.id as level_id, levels.description
         FROM readers
         LEFT JOIN userpoints ON readers.id = userpoints.reader_id
         LEFT JOIN levels ON readers.current_level_id = levels.id
@@ -259,13 +251,15 @@ app.get('/reader-profile', (req, res) => {
 
     db.get(readerSql, [readerId], (err, readerData) => {
         if (err || !readerData) {
-            console.error("Error fetching reader data:", err.message);
+            console.error("Error fetching reader data:", err ? err.message : 'No reader data');
             return res.status(500).send('Error retrieving reader profile');
         }
 
         const totalPoints = readerData.total_points;
         const currentLevelName = readerData.level_name;
         const currentMinPoints = readerData.min_points;
+        const currentLevelId = readerData.level_id; // Get the level_id
+        const levelDescription = readerData.description; // Get the level description
 
         // Fetch the next level info
         const nextLevelSql = `SELECT level_name, min_points FROM levels WHERE min_points > ? ORDER BY min_points ASC LIMIT 1`;
@@ -273,17 +267,21 @@ app.get('/reader-profile', (req, res) => {
             let nextLevelPoints = nextLevel ? nextLevel.min_points : currentMinPoints;  // If no next level, keep current
             let progressPercentage = Math.min((totalPoints - currentMinPoints) / (nextLevelPoints - currentMinPoints) * 100, 100);
 
+            // Pass the level description to the view
             res.render('reader-profile', {
                 readerName: readerData.reader_name,
                 readerTotalPoints: totalPoints,
                 level: currentLevelName,
                 progressPercentage: Math.round(progressPercentage),
                 nextLevelPoints,
-                currentMinPoints
+                currentMinPoints,
+                currentLevelId, // Pass level_id to the view for dynamic image selection
+                levelDescription // Pass the level description to the view
             });
         });
     });
 });
+
 app.get('/reader-progress', (req, res) => {
     const activeReaderId = req.session.activeReaderId; // Assuming active reader ID is stored in the session
 
@@ -337,7 +335,7 @@ app.post('/set-active-reader', (req, res) => {
     req.session.activeReaderId = readerId;
 
     // Redirect to the dashboard or the homepage
-    res.redirect('/');
+    res.redirect('/reader-profile');
 });
 app.get('/logout', (req, res) => {
     req.session.destroy((err) => {
@@ -468,6 +466,27 @@ app.post('/reset-password/:token', (req, res) => {
         });
     });
 });
+app.post('/leave-family', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login'); // Redirect if not logged in
+    }
+
+    const userId = req.session.userId;
+
+    // SQL to remove the family_id from the user's row
+    const leaveFamilySql = `UPDATE users SET family_id = NULL WHERE id = ?`;
+
+    db.run(leaveFamilySql, [userId], function (err) {
+        if (err) {
+            console.error('Error leaving family:', err.message);
+            return res.status(500).send('Error leaving family');
+        }
+
+        // Redirect to /manage after successful family removal
+        res.redirect('/manage');
+    });
+});
+
 
 
 //Main Page
@@ -952,7 +971,6 @@ app.get('/manage', (req, res) => {
         }
     });
 });
-
 function fetchFamilyGroup(familyId, context, res) {
     if (!familyId) {
         // If the user doesn't have a family_id, prompt them to create a family
@@ -1006,7 +1024,6 @@ function fetchFamilyGroup(familyId, context, res) {
         res.render('manage', context);
     });
 }
-
 app.post('/addReader', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1070,7 +1087,6 @@ app.post('/createFamily', (req, res) => {
         });
     });
 });
-
 app.post('/joinFamily', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1106,7 +1122,6 @@ app.post('/joinFamily', (req, res) => {
         });
     });
 });
-
 app.get('/edit-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 
@@ -1178,6 +1193,35 @@ app.get('/admin', (req, res, next) => {
     });
     
 });
+app.get('/admin-levels', (req, res) => {
+    if (!req.session.userId || req.session.role !== 'admin') {
+        return res.status(403).send('Access denied');
+    }
+    db.all('SELECT * FROM levels', [], (err, levels) => {
+        if (err) {
+            console.error('Error retrieving levels:', err.message);
+            return res.status(500).send('Error retrieving levels');
+        }
+        res.render('admin-levels', { levels });
+    });
+});
+app.post('/admin/levels/update', (req, res) => {
+    if (!req.session.userId || req.session.role !== 'admin') {
+        return res.status(403).send('Access denied');
+    }
+    const { id, level_name, min_points, description } = req.body;
+    const updateLevelSql = `UPDATE levels SET level_name = ?, min_points = ?, description = ? WHERE id = ?`;
+    db.run(updateLevelSql, [level_name, min_points, description, id], function (err) {
+        if (err) {
+            console.error('Error updating level:', err.message);
+            return res.status(500).send('Error updating level');
+        }
+        req.flash('success', `you updated the levels table!`);
+        res.redirect('/admin-levels'); // Redirect back to the levels page after the update
+    });
+});
+
+
 
 //Static Pages
 app.get('/about', (req, res) => {

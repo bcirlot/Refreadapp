@@ -124,6 +124,11 @@
                         alert("Join token copied: " + copyText.value);
                     }
                 </script>
+                <div class="container mt-4">
+                <form action="/leave-family" method="POST" onsubmit="return confirm('Are you sure you want to leave your family?');">
+                    <button type="submit" class="btn btn-danger">Leave Family</button>
+                </form>
+                </div>
             <% } %>
             
         </div>

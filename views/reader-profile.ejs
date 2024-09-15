@@ -1,8 +1,26 @@
 <div class="profile">
-    <h1><%= readerName %>'s Profile</h1>
-    <p>Total Points: <%= readerTotalPoints %></p>
-    <h3>Level: <%= level %></h3>
-    <span class="badge badge-success"><%= level %></span>
+    <div class="row align-items-center">
+        <!-- Profile Image on the Left -->
+        <div class="col-auto">
+            <div class="profile-image">
+                <img src="/ml<%= currentLevelId %>.webp" alt="Level Image" class="img-fluid rounded-circle" style="width: 150px;">
+            </div>
+        </div>
+
+        <!-- Name and Badge on the Right, but left-aligned -->
+        <div class="col">
+            <h1 class="mb-0"><%= readerName %>'s Profile</h1>
+            <span class="badge badge-success"><%= level %></span>
+            <p>Total Points: <%= readerTotalPoints %></p>
+        </div>
+    </div> 
+    
+    <div class="my-4">
+        <h3>Reader Tools:</h3>
+        <a href="/reader-progress" class="btn btn-primary">View Reader's Bible Progress</a>
+    </div>
+    
+    <!-- <span class="badge badge-success"><%= level %></span> -->
     
     <!-- Progress bar toward the next level -->
     <div class="mt-4">
@@ -14,9 +32,15 @@
         </div>
         <p><%= readerTotalPoints %> / <%= nextLevelPoints %> points</p>
     </div>
-    <div class="my-4">
-        <a href="/reader-progress" class="btn btn-primary">View Reader's Bible Progress</a>
+    <h3>Current Level: <%= level %></h3>
+    <div class="mt-4">
+        <p><%= levelDescription %></p>
     </div>
+    <div class="profile-image">
+        <img src="/ml<%= currentLevelId %>.webp" alt="Level Image" class="img-fluid">
+    </div>
+    
+    
 </div>
 
 
