@@ -17,6 +17,7 @@ const flash = require('connect-flash');
 const app = express();
 const expressLayouts = require('express-ejs-layouts');
 const port = 3000;
+const { Client } = require('pg');
 
 //app.* stuff
 app.use(express.urlencoded({ extended: false }));
@@ -58,9 +59,9 @@ app.use((req, res, next) => {
     const userId = req.session.userId;
 
     // Query to get family ID for the current user
-    const familySql = `SELECT family_id FROM users WHERE id = ?`;
+    const familySql = `SELECT family_id FROM users WHERE id = $1`;
 
-    db.get(familySql, [userId], (err, familyRow) => {
+    dbGet(familySql, [userId], (err, familyRow) => {
         if (err) {
             console.error('Error retrieving family:', err.message);
             return res.status(500).send('Error retrieving family');
@@ -77,9 +78,9 @@ app.use((req, res, next) => {
         const pointsSql = `SELECT SUM(user_points) as total_points
                            FROM userpoints
                            JOIN readers ON userpoints.reader_id = readers.id
-                           WHERE readers.family_id = ?`;
+                           WHERE readers.family_id = $1`;
 
-        db.get(pointsSql, [familyId], (err, pointsRow) => {
+        dbGet(pointsSql, [familyId], (err, pointsRow) => {
             if (err) {
                 console.error('Error retrieving points:', err.message);
                 res.locals.totalPoints = 0;  // Default to 0 points on error
@@ -99,10 +100,11 @@ app.use((req, res, next) => {
             SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points
             FROM readers
             LEFT JOIN userpoints ON readers.id = userpoints.reader_id
-            WHERE readers.id = ?
+            WHERE readers.id = $1
+            GROUP BY readers.reader_name
         `;
 
-        db.get(readerSql, [req.session.activeReaderId], (err, reader) => {
+        dbGet(readerSql, [req.session.activeReaderId], (err, reader) => {
             if (err) {
                 console.error('Error retrieving active reader:', err.message);
                 return next(); // Skip and continue to the next middleware or route
@@ -146,20 +148,74 @@ function ensureAdmin(req, res, next) {
     }
 }
 // Connect to the SQLite database
-let db = new sqlite3.Database('./mydatabase.db', (err) => {
-    if (err) {
-        console.error(err.message);
-        return;
+let db;
+
+if (process.env.DATABASE_URL) {
+    // Heroku Production - Use PostgreSQL
+    const client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: {
+            rejectUnauthorized: false
+        }
+    });
+    client.connect();
+    db = client;
+} else {
+    // Local Development - Use SQLite
+    db = new sqlite3.Database('./mydatabase.db', (err) => {
+        if (err) {
+            console.error(err.message);
+        }
+        console.log('Connected to the local SQLite database.');
+    });
+}
+
+function dbGet(query, params = [], callback) {
+    if (process.env.DATABASE_URL) {
+        // PostgreSQL
+        db.query(query, params, (err, result) => {
+            if (err) {
+                return callback(err, null);
+            }
+            callback(null, result.rows[0]);  // PostgreSQL returns rows in result.rows
+        });
+    } else {
+        // SQLite
+        dbGet(query, params, callback);
     }
-    console.log('Connected to the SQLite database.');
-});
-const { Pool } = require('pg');
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
+}
+
+function dbAll(query, params = [], callback) {
+    if (process.env.DATABASE_URL) {
+        // PostgreSQL
+        db.query(query, params, (err, result) => {
+            if (err) {
+                return callback(err);
+            }
+            callback(null, result.rows);  // PostgreSQL returns all rows in result.rows
+        });
+    } else {
+        // SQLite
+        dbAll(query, params, callback);
     }
-});
+}
+
+function dbRun(query, params = [], callback) {
+    if (process.env.DATABASE_URL) {
+        // PostgreSQL (use query for inserts/updates)
+        db.query(query, params, (err, result) => {
+            if (err) {
+                return callback(err);
+            }
+            callback(null, result);  // You can handle affected rows if needed (result.rowCount)
+        });
+    } else {
+        // SQLite
+        dbRun(query, params, callback);
+    }
+}
+
+
 // Mail stuff for password change
 const transporter = nodemailer.createTransport({
     host: 'smtp.zoho.com',
@@ -185,8 +241,8 @@ app.get('/login', (req, res) => {
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
 
-    const sql = `SELECT * FROM users WHERE email = ?`;
-    db.get(sql, [email], (err, user) => {
+    const sql = `SELECT * FROM users WHERE email = $1`;
+    dbGet(sql, [email], (err, user) => {
         if (err) {
             console.error(err.message);
             res.render('login', { error: 'An error occurred, please try again.' });
@@ -224,9 +280,9 @@ app.get('/select-reader', (req, res) => {
     const familySql = `SELECT readers.id, readers.reader_name 
                        FROM readers 
                        INNER JOIN family ON readers.family_id = family.id 
-                       WHERE family.user_id = ?`;
+                       WHERE family.user_id = $1`;
 
-    db.all(familySql, [req.session.userId], (err, readers) => {
+    dbAll(familySql, [req.session.userId], (err, readers) => {
         if (err) {
             console.error('Error retrieving readers:', err.message);
             return res.status(500).send('Error retrieving readers.');
@@ -254,10 +310,10 @@ app.get('/reader-profile', (req, res) => {
         FROM readers
         LEFT JOIN userpoints ON readers.id = userpoints.reader_id
         LEFT JOIN levels ON readers.current_level_id = levels.id
-        WHERE readers.id = ?
+        WHERE readers.id = $1
     `;
 
-    db.get(readerSql, [readerId], (err, readerData) => {
+    dbGet(readerSql, [readerId], (err, readerData) => {
         if (err || !readerData) {
             console.error("Error fetching reader data:", err ? err.message : 'No reader data');
             return res.status(500).send('Error retrieving reader profile');
@@ -270,8 +326,8 @@ app.get('/reader-profile', (req, res) => {
         const levelDescription = readerData.description; // Get the level description
 
         // Fetch the next level info
-        const nextLevelSql = `SELECT level_name, min_points FROM levels WHERE min_points > ? ORDER BY min_points ASC LIMIT 1`;
-        db.get(nextLevelSql, [totalPoints], (err, nextLevel) => {
+        const nextLevelSql = `SELECT level_name, min_points FROM levels WHERE min_points > $1 ORDER BY min_points ASC LIMIT 1`;
+        dbGet(nextLevelSql, [totalPoints], (err, nextLevel) => {
             let nextLevelPoints = nextLevel ? nextLevel.min_points : currentMinPoints;  // If no next level, keep current
             let progressPercentage = Math.min((totalPoints - currentMinPoints) / (nextLevelPoints - currentMinPoints) * 100, 100);
 
@@ -297,11 +353,11 @@ app.get('/reader-progress', (req, res) => {
     const chapterReadsSql = `
         SELECT chapter_id, COUNT(chapter_id) AS times_read
         FROM user_chapters
-        WHERE reader_id = ?
+        WHERE reader_id = $1
         GROUP BY chapter_id
     `;
 
-    db.all(chapterReadsSql, [activeReaderId], (err, rows) => {
+    dbAll(chapterReadsSql, [activeReaderId], (err, rows) => {
         if (err) {
             console.error('Error fetching reader-specific chapters:', err.message);
             return res.status(500).send('Error retrieving Bible progress');
@@ -324,15 +380,15 @@ app.get('/reader-progress', (req, res) => {
         // Fetch chapters for the current cycle, filtering by active reader and taking into account minReads
         const allChaptersSql = `
             SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
-                   CASE WHEN COUNT(user_chapters.chapter_id) > ? THEN 1 ELSE 0 END as is_read
+                   CASE WHEN COUNT(user_chapters.chapter_id) > $1 THEN 1 ELSE 0 END as is_read
             FROM chaptersmaster
             LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
-                                   AND user_chapters.reader_id = ?  -- Filter by the active reader
+                                   AND user_chapters.reader_id = $2  -- Filter by the active reader
             GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
             ORDER BY chaptersmaster.id  -- Maintain Bible order
         `;
 
-        db.all(allChaptersSql, [minReads, activeReaderId], (err, chapters) => {
+        dbAll(allChaptersSql, [minReads, activeReaderId], (err, chapters) => {
             if (err) {
                 console.error('Error fetching Bible chapters:', err.message);
                 return res.status(500).send('Error retrieving Bible progress');
@@ -352,8 +408,8 @@ app.get('/reader-progress', (req, res) => {
             });
 
             // Fetch the active reader's name
-            const readerNameSql = `SELECT reader_name FROM readers WHERE id = ?`;
-            db.get(readerNameSql, [activeReaderId], (err, reader) => {
+            const readerNameSql = `SELECT reader_name FROM readers WHERE id = $1`;
+            dbGet(readerNameSql, [activeReaderId], (err, reader) => {
                 if (err) {
                     console.error('Error retrieving reader name:', err.message);
                     return res.status(500).send('Error retrieving reader name');
@@ -381,8 +437,8 @@ app.post('/set-active-reader', (req, res) => {
     // Set the active reader in the session
     req.session.activeReaderId = readerId;
 
-    const getReaderLevelSql = `SELECT readers.current_level_id FROM readers WHERE id = ?`;
-    db.get(getReaderLevelSql, [readerId], (err, row) => {
+    const getReaderLevelSql = `SELECT readers.current_level_id FROM readers WHERE id = $1`;
+    dbGet(getReaderLevelSql, [readerId], (err, row) => {
         if (err) {
             console.error('Error fetching reader level:', err.message);
             return res.status(500).send('Error retrieving reader level');
@@ -410,8 +466,8 @@ app.get('/logout', (req, res) => {
 });
 app.post('/register', (req, res) => {
     const { name, email, password } = req.body;
-    const checkEmailSql = `SELECT * FROM users WHERE email = ?`;
-    db.get(checkEmailSql, [email], (err, row) => {
+    const checkEmailSql = `SELECT * FROM users WHERE email = $1`;
+    dbGet(checkEmailSql, [email], (err, row) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error checking email');
@@ -426,8 +482,8 @@ app.post('/register', (req, res) => {
             }
 
             // Insert the new user into the database
-            const insertUserSql = `INSERT INTO users (name, email, password) VALUES (?, ?, ?)`;
-            db.run(insertUserSql, [name, email, hashedPassword], function (err) {
+            const insertUserSql = `INSERT INTO users (name, email, password) VALUES ($1, $2, $3)`;
+            dbRun(insertUserSql, [name, email, hashedPassword], function (err) {
                 if (err) {
                     console.error(err.message);
                     return res.status(500).send('Error registering user');
@@ -449,16 +505,16 @@ app.post('/forgot-password', (req, res) => {
     const token = crypto.randomBytes(20).toString('hex');
 
     // Check if email exists in the database
-    const sql = `SELECT * FROM users WHERE email = ?`;
-    db.get(sql, [email], (err, user) => {
+    const sql = `SELECT * FROM users WHERE email = $1`;
+    dbGet(sql, [email], (err, user) => {
         if (err || !user) {
             return res.status(400).send('Email does not exist');
         }
 
         // Store token and expiration time in the database
         const tokenExpiration = Date.now() + 3600000; // 1 hour
-        const updateSql = `UPDATE users SET reset_token = ?, reset_token_expiration = ? WHERE email = ?`;
-        db.run(updateSql, [token, tokenExpiration, email], (err) => {
+        const updateSql = `UPDATE users SET reset_token = $1, reset_token_expiration = $2 WHERE email = $3`;
+        dbRun(updateSql, [token, tokenExpiration, email], (err) => {
             if (err) {
                 console.error(err.message);
                 return res.status(500).send('Error generating reset link');
@@ -488,8 +544,8 @@ app.get('/reset-password/:token', (req, res) => {
     const { token } = req.params;
     
     // Check if token is valid and not expired
-    const sql = `SELECT * FROM users WHERE reset_token = ? AND reset_token_expiration > ?`;
-    db.get(sql, [token, Date.now()], (err, user) => {
+    const sql = `SELECT * FROM users WHERE reset_token = $1 AND reset_token_expiration > $2`;
+    dbGet(sql, [token, Date.now()], (err, user) => {
         if (err || !user) {
             return res.status(400).send('Invalid or expired token');
         }
@@ -503,8 +559,8 @@ app.post('/reset-password/:token', (req, res) => {
     const { password } = req.body;
 
     // Check if token is valid and not expired
-    const sql = `SELECT * FROM users WHERE reset_token = ? AND reset_token_expiration > ?`;
-    db.get(sql, [token, Date.now()], (err, user) => {
+    const sql = `SELECT * FROM users WHERE reset_token = $1 AND reset_token_expiration > $2`;
+    dbGet(sql, [token, Date.now()], (err, user) => {
         if (err || !user) {
             return res.status(400).send('Invalid or expired token');
         }
@@ -516,8 +572,8 @@ app.post('/reset-password/:token', (req, res) => {
                 return res.status(500).send('Error resetting password');
             }
 
-            const updateSql = `UPDATE users SET password = ?, reset_token = NULL, reset_token_expiration = NULL WHERE id = ?`;
-            db.run(updateSql, [hashedPassword, user.id], (err) => {
+            const updateSql = `UPDATE users SET password = $1, reset_token = NULL, reset_token_expiration = NULL WHERE id = $2`;
+            dbRun(updateSql, [hashedPassword, user.id], (err) => {
                 if (err) {
                     console.error('Error updating password:', err.message);
                     return res.status(500).send('Error updating password');
@@ -536,9 +592,9 @@ app.post('/leave-family', (req, res) => {
     const userId = req.session.userId;
 
     // SQL to remove the family_id from the user's row
-    const leaveFamilySql = `UPDATE users SET family_id = NULL WHERE id = ?`;
+    const leaveFamilySql = `UPDATE users SET family_id = NULL WHERE id = $1`;
 
-    db.run(leaveFamilySql, [userId], function (err) {
+    dbRun(leaveFamilySql, [userId], function (err) {
         if (err) {
             console.error('Error leaving family:', err.message);
             return res.status(500).send('Error leaving family');
@@ -567,7 +623,7 @@ app.get('/', (req, res) => {
         GROUP BY chapter_id`;
 
     // Fetch total chapters read across all users
-    db.get(totalChaptersSql, (err, totalRow) => {
+    dbGet(totalChaptersSql, (err, totalRow) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error retrieving total chapters');
@@ -576,7 +632,7 @@ app.get('/', (req, res) => {
         const totalChaptersRead = totalRow.total; // Total chapters read across all users
 
         // Fetch the number of times each chapter has been read
-        db.all(chapterReadsSql, (err, rows) => {
+        dbAll(chapterReadsSql, (err, rows) => {
             if (err) {
                 console.error(err.message);
                 return res.status(500).send('Error retrieving chapter reads');
@@ -617,11 +673,11 @@ app.get('/', (req, res) => {
             }
 
             const userId = req.session.userId;
-            const userSql = `SELECT name FROM users WHERE id = ?`;
+            const userSql = `SELECT name FROM users WHERE id = $1`;
             const readersSql = `SELECT readers.reader_name, COUNT(user_chapters.id) as chapter_count
                                 FROM readers
                                 LEFT JOIN user_chapters ON readers.id = user_chapters.reader_id
-                                WHERE readers.family_id = (SELECT family.id FROM family WHERE family.user_id = ?)
+                                WHERE readers.family_id = (SELECT family.id FROM family WHERE family.user_id = $1)
                                 GROUP BY readers.reader_name`;
             const dataSql = `SELECT users.name as user_name, 
                                     readers.reader_name,
@@ -633,9 +689,9 @@ app.get('/', (req, res) => {
                              INNER JOIN readers ON user_chapters.reader_id = readers.id
                              INNER JOIN family ON readers.family_id = family.id
                              INNER JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
-                             WHERE users.id = ?`;
+                             WHERE users.id = $1`;
 
-            db.get(userSql, [userId], (err, userRow) => {
+            dbGet(userSql, [userId], (err, userRow) => {
                 if (err) {
                     console.error(err.message);
                     return res.status(500).send('Error retrieving user');
@@ -643,13 +699,13 @@ app.get('/', (req, res) => {
 
                 const userName = userRow ? userRow.name : 'Guest';
 
-                db.all(readersSql, [userId], (err, readerCounts) => {
+                dbAll(readersSql, [userId], (err, readerCounts) => {
                     if (err) {
                         console.error(err.message);
                         return res.status(500).send('Error retrieving reader counts');
                     }
 
-                    db.all(dataSql, [userId], (err, chapterRows) => {
+                    dbAll(dataSql, [userId], (err, chapterRows) => {
                         if (err) {
                             console.error(err.message);
                             return res.status(500).send('Error retrieving chapters');
@@ -680,7 +736,7 @@ app.get('/bible-progress', (req, res) => {
         FROM user_chapters
         GROUP BY chapter_id`;
 
-    db.all(chapterReadsSql, (err, rows) => {
+    dbAll(chapterReadsSql, (err, rows) => {
         if (err) {
             console.error('Error fetching Bible chapters:', err.message);
             return res.status(500).send('Error retrieving Bible progress');
@@ -703,7 +759,7 @@ app.get('/bible-progress', (req, res) => {
         // Group chapters by book and indicate whether they've been read for the current completion cycle
         const allChaptersSql = `
             SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
-                   CASE WHEN COUNT(user_chapters.chapter_id) > ? THEN 1 ELSE 0 END as is_read
+                   CASE WHEN COUNT(user_chapters.chapter_id) > $1 THEN 1 ELSE 0 END as is_read
             FROM chaptersmaster
             LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
             GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
@@ -711,7 +767,7 @@ app.get('/bible-progress', (req, res) => {
         `;
 
         // Fetch chapters for the current cycle
-        db.all(allChaptersSql, [minReads], (err, chapters) => {
+        dbAll(allChaptersSql, [minReads], (err, chapters) => {
             if (err) {
                 console.error('Error fetching Bible chapters:', err.message);
                 return res.status(500).send('Error retrieving Bible progress');
@@ -751,7 +807,7 @@ app.get('/record', (req, res) => {
     const chapterSql = `SELECT id, book, chapter FROM chaptersmaster ORDER BY id`;
 
     // Fetch chapters for the form
-    db.all(chapterSql, [], (err, chapters) => {
+    dbAll(chapterSql, [], (err, chapters) => {
         if (err) {
             console.error('Error retrieving chapters:', err.message);
             return res.status(500).send('Error retrieving chapters');
@@ -781,16 +837,14 @@ app.post('/record', (req, res) => {
     }
 
     const userId = req.session.userId;
-    const readerId = req.session.activeReaderId; // Get the active reader ID from the session
+    const readerId = req.session.activeReaderId; // Use active reader ID from session
+    const bookName = req.body.bookName;
     const startChapter = req.body.startChapterId;
     const endChapter = req.body.endChapterId;
-    const bookName = req.body.bookName;
 
     console.log(`Received form submission: Reader ID - ${readerId}, Book - ${bookName}, Start Chapter - ${startChapter}, End Chapter - ${endChapter}`);
-    if (!bookName) {
-        return res.status(400).send('Book name is missing.');
-    }
-    if (!startChapter || !endChapter) {
+
+    if (!bookName || !startChapter || !endChapter) {
         return res.status(400).send('Missing required data.');
     }
 
@@ -802,7 +856,7 @@ app.post('/record', (req, res) => {
         return res.status(400).send('Invalid chapter range.');
     }
 
-    const sql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
+    const sql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES ($1, $2, $3)`;
     const stmt = db.prepare(sql);
     let pointsToAdd = 0;  // Track the total points to add
 
@@ -815,19 +869,27 @@ app.post('/record', (req, res) => {
 
         console.log(`Finding chapter in the database: ${chapterName}`); // Log the chapter being searched in the DB
 
-        db.get(`SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`, [bookName, chapterId], (err, row) => {
+        dbGet(`SELECT id FROM chaptersmaster WHERE book = $1 AND chapter = $2`, [bookName, chapterId], (err, row) => {
             if (err) {
                 console.error(`Error finding chapter ${chapterName}:`, err.message);
                 hasErrorOccurred = true;
             } else if (row) {
-                console.log(`Found chapter ID for ${chapterName}: ${row.id}`); // Log found chapter ID
                 stmt.run([userId, readerId, row.id], (err) => {
                     if (err) {
                         console.error(`Error inserting chapter ${chapterId}:`, err.message);
                         hasErrorOccurred = true;
                     } 
                 });
-                pointsToAdd++;
+
+                // Check if this chapter completes a cycle
+                checkForCompletion(readerId, row.id, (isCompletionChapter) => {
+                    if (isCompletionChapter) {
+                        pointsToAdd += 5; // 5 points for chapters that contribute to completion
+                    } else {
+                        pointsToAdd += 1; // 1 point for regular chapters
+                    }
+                });
+
             } else {
                 console.error(`Chapter ${chapterName} not found.`);
                 hasErrorOccurred = true;
@@ -866,6 +928,45 @@ app.post('/record', (req, res) => {
     }
 });
 
+function checkForCompletion(readerId, chapterId, callback) {
+    const totalBibleChapters = 1189; // Total chapters in the Bible
+
+    // Get the total number of times each chapter has been read by the reader
+    const chapterReadsSql = `
+        SELECT chapter_id, COUNT(chapter_id) AS times_read
+        FROM user_chapters
+        WHERE reader_id = $1
+        GROUP BY chapter_id`;
+
+    dbAll(chapterReadsSql, [readerId], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving chapter reads:', err.message);
+            return callback(false);
+        }
+
+        // Initialize an array to store the number of times each chapter has been read
+        let timesReadArray = new Array(totalBibleChapters).fill(0);
+
+        // Populate the timesReadArray with the number of reads for each chapter
+        rows.forEach(row => {
+            timesReadArray[row.chapter_id - 1] = row.times_read;  // Subtract 1 because array index starts from 0
+        });
+
+        // Find the minimum number of times any chapter has been read
+        const minReads = Math.min(...timesReadArray);
+
+        // Check if this chapter is contributing to a new completion cycle
+        if (timesReadArray[chapterId - 1] === minReads) {
+            // This chapter is contributing to the next completion cycle
+            callback(true);
+        } else {
+            // Regular chapter read
+            callback(false);
+        }
+    });
+}
+
+
 app.get('/record-by-book', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -873,17 +974,17 @@ app.get('/record-by-book', (req, res) => {
 
     const userId = req.session.userId;
     const activeReaderId = req.session.activeReaderId;
-    const familySql = `SELECT family_id FROM users WHERE id = ?`;
+    const familySql = `SELECT family_id FROM users WHERE id = $1`;
     const readersSql = `SELECT readers.id, readers.reader_name 
                         FROM readers 
                         INNER JOIN family ON readers.family_id = family.id
-                        WHERE family.id = ?`;
+                        WHERE family.id = $1`;
     
     // Fetch distinct books without sorting alphabetically, using the natural order in the database
     const booksSql = `SELECT DISTINCT book FROM chaptersmaster ORDER BY id`;
 
     // Get the user's family ID
-    db.get(familySql, [userId], (err, familyRow) => {
+    dbGet(familySql, [userId], (err, familyRow) => {
         if (err || !familyRow) {
             console.error('Error retrieving family:', err.message);
             return res.status(500).send('Error retrieving family');
@@ -891,14 +992,14 @@ app.get('/record-by-book', (req, res) => {
         const familyId = familyRow.family_id;
         console.log('family id is: ',familyId)
         // Fetch all readers in the family
-        db.all(readersSql, [familyId], (err, readers) => {
+        dbAll(readersSql, [familyId], (err, readers) => {
             if (err) {
                 console.error('Error retrieving readers:', err.message);
                 return res.status(500).send('Error retrieving readers');
             }
 
             // Fetch all books in the order they appear in the chaptersmaster table
-            db.all(booksSql, [], (err, books) => {
+            dbAll(booksSql, [], (err, books) => {
                 if (err) {
                     console.error('Error retrieving books:', err.message);
                     return res.status(500).send('Error retrieving books');
@@ -911,25 +1012,20 @@ app.get('/record-by-book', (req, res) => {
     });
 });
 app.post('/record-by-book', (req, res) => {
-    const userId = req.session.userId; // Assuming userId is stored in the session
+    const userId = req.session.userId;
     const readerId = req.session.activeReaderId;
     let bookNames = req.body['bookName[]'];
 
-    // Check if bookNames is not an array (if only one book is selected)
     if (!Array.isArray(bookNames)) {
         bookNames = [bookNames];  // Convert single string to an array
     }
-
-    console.log('readerId:', readerId);
-    console.log('bookNames:', bookNames);
-    console.log('bookNames length:', bookNames.length);
 
     if (!readerId || !bookNames || bookNames.length === 0) {
         return res.status(400).send('Missing required data.');
     }
 
-    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
-    const stmt = db.prepare(insertChapterSql); // Prepare the statement for inserting chapters
+    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES ($1, $2, $3)`;
+    const stmt = db.prepare(insertChapterSql);
 
     let totalPointsToAdd = 0;
     let pendingOperations = 0;
@@ -937,10 +1033,9 @@ app.post('/record-by-book', (req, res) => {
 
     // Iterate over the bookNames array
     bookNames.forEach(bookName => {
-        console.log('Processing book:', bookName);
-        
-        // Fetch all chapters for the book
-        db.all(`SELECT id, chapter FROM chaptersmaster WHERE book = ?`, [bookName], (err, chapters) => {
+        console.log(`Processing book: ${bookName}`);
+
+        dbAll(`SELECT id, chapter FROM chaptersmaster WHERE book = $1`, [bookName], (err, chapters) => {
             if (err) {
                 console.error(`Error retrieving chapters for ${bookName}:`, err.message);
                 hasErrorOccurred = true;
@@ -949,21 +1044,31 @@ app.post('/record-by-book', (req, res) => {
 
             pendingOperations += chapters.length;
 
-            // Insert each chapter into the user_chapters table
+            // Check completion and then insert each chapter
             chapters.forEach(chapter => {
-                stmt.run([userId, readerId, chapter.id], (err) => {
-                    if (err) {
-                        console.error(`Error inserting chapter ${chapter.chapter} for ${bookName}:`, err.message);
-                        hasErrorOccurred = true;
+                // Check for completion before inserting the chapter
+                checkForCompletion(readerId, chapter.id, (isCompletionChapter) => {
+                    if (isCompletionChapter) {
+                        console.log(`Chapter ${chapter.chapter} contributes to a completion cycle. Adding 5 points.`);
+                        totalPointsToAdd += 5;
                     } else {
-                        totalPointsToAdd++; // Increment points for each chapter successfully added
+                        console.log(`Chapter ${chapter.chapter} does not contribute to a completion cycle. Adding 1 point.`);
+                        totalPointsToAdd += 1;
                     }
 
-                    pendingOperations--;
+                    // Now insert the chapter into the database
+                    stmt.run([userId, readerId, chapter.id], (err) => {
+                        if (err) {
+                            console.error(`Error inserting chapter ${chapter.chapter} for ${bookName}:`, err.message);
+                            hasErrorOccurred = true;
+                        }
 
-                    if (pendingOperations === 0) {
-                        finalizeTransaction();
-                    }
+                        pendingOperations--;
+
+                        if (pendingOperations === 0) {
+                            finalizeTransaction();
+                        }
+                    });
                 });
             });
         });
@@ -982,18 +1087,20 @@ app.post('/record-by-book', (req, res) => {
             }
 
             if (totalPointsToAdd > 0) {
-                // Add the total points to the userpoints table
+                console.log(`Adding ${totalPointsToAdd} points to readerId: ${readerId}`);
                 addPoints(readerId, totalPointsToAdd);
-                console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
                 req.flash('success', `Thank you for reporting chapters!`);
                 res.redirect('/reader-profile');
-
             } else {
                 res.redirect('/reader-profile');
             }
         });
     }
 });
+
+
+
+
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1004,9 +1111,9 @@ app.get('/manage', (req, res) => {
     const userRole = req.session.role;
 
     // Fetch the logged-in user's name and family_id
-    const userSql = `SELECT name, family_id FROM users WHERE id = ?`;
+    const userSql = `SELECT name, family_id FROM users WHERE id = $1`;
 
-    db.get(userSql, [userId], (err, userRow) => {
+    dbGet(userSql, [userId], (err, userRow) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error retrieving user');
@@ -1029,7 +1136,7 @@ app.get('/manage', (req, res) => {
                 ORDER BY total_chapters_read DESC
             `;
 
-            db.all(allUsersChaptersSql, [], (err, chapters) => {
+            dbAll(allUsersChaptersSql, [], (err, chapters) => {
                 if (err) {
                     console.error(err.message);
                     return res.status(500).send('Error retrieving chapters for all users');
@@ -1060,11 +1167,11 @@ function fetchFamilyGroup(familyId, context, res) {
         FROM family
         LEFT JOIN readers ON family.id = readers.family_id
         LEFT JOIN userpoints ON readers.id = userpoints.reader_id
-        WHERE family.id = ?
+        WHERE family.id = $1
         GROUP BY readers.id
     `;
 
-    db.all(familySql, [familyId], (err, rows) => {
+    dbAll(familySql, [familyId], (err, rows) => {
         if (err) {
             console.error('Error retrieving family group:', err.message);
             return res.status(500).send('Error retrieving family group');
@@ -1108,15 +1215,15 @@ app.post('/addReader', (req, res) => {
     const { familyId, readerName } = req.body;
 
     // Insert a new reader associated with the logged-in user's family
-    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
-    const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
-    db.run(insertReaderSql, [familyId, readerName], function (err) {
+    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES ($1, $2)`;
+    const findNewReaderSql = `SELECT id FROM readers WHERE family_id = $1 AND reader_name = $2`;
+    dbRun(insertReaderSql, [familyId, readerName], function (err) {
         if (err) {
             console.error('Error adding reader:', err.message);
             return res.status(500).send('Error adding reader');
         }
         console.log(`Added new reader with ID ${this.lastID}`);
-        db.get(findNewReaderSql, [familyId, readerName],(err, row) => {
+        dbGet(findNewReaderSql, [familyId, readerName],(err, row) => {
             if (err) {
                 console.error(err.message);
                 return res.status(500).send('Error retrieving reader id');
@@ -1137,9 +1244,9 @@ app.post('/createFamily', (req, res) => {
     const token = crypto.randomBytes(20).toString('hex');
 
     // Insert a new family for the logged-in user
-    const createFamilySql = `INSERT INTO family (user_id, family_name, join_token) VALUES (?, ?, ?)`;
+    const createFamilySql = `INSERT INTO family (user_id, family_name, join_token) VALUES ($1, $2, $3)`;
 
-    db.run(createFamilySql, [userId, familyName, token], function (err) {
+    dbRun(createFamilySql, [userId, familyName, token], function (err) {
         if (err) {
             console.error('Error creating family:', err.message);
             return res.status(500).send('Error creating family');
@@ -1150,8 +1257,8 @@ app.post('/createFamily', (req, res) => {
         console.log(`Created new family with ID ${familyId}`);
 
         // Update the user's family_id in the users table
-        const updateUserFamilySql = `UPDATE users SET family_id = ? WHERE id = ?`;
-        db.run(updateUserFamilySql, [familyId, userId], function (err) {
+        const updateUserFamilySql = `UPDATE users SET family_id = $1 WHERE id = $2`;
+        dbRun(updateUserFamilySql, [familyId, userId], function (err) {
             if (err) {
                 console.error('Error updating user:', err.message);
                 return res.status(500).send('Error updating user');
@@ -1169,9 +1276,9 @@ app.post('/joinFamily', (req, res) => {
 
     const userId = req.session.userId;
     const { familyToken } = req.body;
-    const joinFamilySql = `SELECT * FROM family WHERE join_token = ?`;
+    const joinFamilySql = `SELECT * FROM family WHERE join_token = $1`;
 
-    db.get(joinFamilySql, [familyToken], (err, row) => {
+    dbGet(joinFamilySql, [familyToken], (err, row) => {
         if (err) {
             console.error('Error joining family:', err.message);
             return res.status(500).send('Error joining family');
@@ -1186,7 +1293,7 @@ app.post('/joinFamily', (req, res) => {
         const familyId = row.id;
         console.log(`Found family with ID ${familyId}`);
 
-        db.run('UPDATE users SET family_id = ? WHERE id = ?', [familyId, userId], (updateErr) => {
+        dbRun('UPDATE users SET family_id = $1 WHERE id = $2', [familyId, userId], (updateErr) => {
             if (updateErr) {
                 console.error('Error updating user with family ID:', updateErr.message);
                 return res.status(500).send('Error joining family');
@@ -1200,8 +1307,8 @@ app.post('/joinFamily', (req, res) => {
 app.get('/edit-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 
-    const readerSql = `SELECT reader_name FROM readers WHERE id = ?`;
-    db.get(readerSql, [readerId], (err, reader) => {
+    const readerSql = `SELECT reader_name FROM readers WHERE id = $1`;
+    dbGet(readerSql, [readerId], (err, reader) => {
         if (err) {
             console.error('Error fetching reader:', err.message);
             return res.status(500).send('Error fetching reader');
@@ -1218,8 +1325,8 @@ app.post('/edit-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
     const newName = req.body.readerName;
 
-    const updateReaderSql = `UPDATE readers SET reader_name = ? WHERE id = ?`;
-    db.run(updateReaderSql, [newName, readerId], function (err) {
+    const updateReaderSql = `UPDATE readers SET reader_name = $1 WHERE id = $2`;
+    dbRun(updateReaderSql, [newName, readerId], function (err) {
         if (err) {
             console.error('Error updating reader:', err.message);
             return res.status(500).send('Error updating reader');
@@ -1233,8 +1340,8 @@ app.post('/delete-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 
     // Step 1: Delete all related chapters for this reader
-    const deleteChaptersSql = `DELETE FROM user_chapters WHERE reader_id = ?`;
-    db.run(deleteChaptersSql, [readerId], function(err) {
+    const deleteChaptersSql = `DELETE FROM user_chapters WHERE reader_id = $1`;
+    dbRun(deleteChaptersSql, [readerId], function(err) {
         if (err) {
             console.error('Error deleting chapters:', err.message);
             return res.status(500).send('Error deleting chapters');
@@ -1243,8 +1350,8 @@ app.post('/delete-reader/:readerId', (req, res) => {
         console.log(`Chapters for reader ID: ${readerId} deleted successfully.`);
 
         // Step 2: Delete the reader after chapters are deleted
-        const deleteReaderSql = `DELETE FROM readers WHERE id = ?`;
-        db.run(deleteReaderSql, [readerId], function(err) {
+        const deleteReaderSql = `DELETE FROM readers WHERE id = $1`;
+        dbRun(deleteReaderSql, [readerId], function(err) {
             if (err) {
                 console.error('Error deleting reader:', err.message);
                 return res.status(500).send('Error deleting reader');
@@ -1259,7 +1366,7 @@ app.get('/admin', (req, res, next) => {
     if (req.session.role !== 'admin') {
         return res.redirect('/');
     } 
-    db.all('SELECT name, email, role FROM users', [],(err, users) => {
+    dbAll('SELECT name, email, role FROM users', [],(err, users) => {
         if (err) {
             console.error(err);
             return res.status(500).send('Server Error');
@@ -1272,7 +1379,7 @@ app.get('/admin-levels', (req, res) => {
     if (!req.session.userId || req.session.role !== 'admin') {
         return res.status(403).send('Access denied');
     }
-    db.all('SELECT * FROM levels', [], (err, levels) => {
+    dbAll('SELECT * FROM levels', [], (err, levels) => {
         if (err) {
             console.error('Error retrieving levels:', err.message);
             return res.status(500).send('Error retrieving levels');
@@ -1285,8 +1392,8 @@ app.post('/admin/levels/update', (req, res) => {
         return res.status(403).send('Access denied');
     }
     const { id, level_name, min_points, description } = req.body;
-    const updateLevelSql = `UPDATE levels SET level_name = ?, min_points = ?, description = ? WHERE id = ?`;
-    db.run(updateLevelSql, [level_name, min_points, description, id], function (err) {
+    const updateLevelSql = `UPDATE levels SET level_name = $1, min_points = $2, description = $3 WHERE id = $4`;
+    dbRun(updateLevelSql, [level_name, min_points, description, id], function (err) {
         if (err) {
             console.error('Error updating level:', err.message);
             return res.status(500).send('Error updating level');
@@ -1313,7 +1420,7 @@ app.get('/unread-chapters', (req, res) => {
         ORDER BY chaptersmaster.id 
     `;
 
-    db.all(unreadChaptersSql, [], (err, unreadRows) => {
+    dbAll(unreadChaptersSql, [], (err, unreadRows) => {
         if (err) {
             console.error('Error fetching unread chapters:', err.message);
             return res.status(500).send('Error retrieving unread chapters');
@@ -1366,7 +1473,7 @@ app.get('/export-chapters-csv', (req, res) => {
 
     const sql = `SELECT * FROM user_chapters`;
 
-    db.all(sql, [], (err, rows) => {
+    dbAll(sql, [], (err, rows) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error retrieving user chapters');
@@ -1427,7 +1534,7 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
             console.log('CSV file successfully processed:', csvData);
 
             // Insert CSV data back into the user_chapters table
-            const insertSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id, timestamp) VALUES (?, ?, ?, ?)`;
+            const insertSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id, timestamp) VALUES ($1, $2, $3, $4)`;
             const stmt = db.prepare(insertSql);
 
             csvData.forEach((row) => {
@@ -1460,9 +1567,9 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
 //Gamification Components
 function addPoints(readerId, pointsToAdd) {
     // First, check if the user already has an entry in the userpoints table
-    const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
+    const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = $1`;
 
-    db.get(checkSql, [readerId], (err, row) => {
+    dbGet(checkSql, [readerId], (err, row) => {
         if (err) {
             console.error("Error checking for existing points:", err.message);
             return;
@@ -1471,9 +1578,9 @@ function addPoints(readerId, pointsToAdd) {
         if (row) {
             // If the user already has points, calculate the new total points
             const newPoints = row.user_points + pointsToAdd;
-            const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
+            const updateSql = `UPDATE userpoints SET user_points = $1 WHERE reader_id = $2`;
             console.log(`New total points: ${newPoints}`);
-            db.run(updateSql, [newPoints, readerId], (err) => {
+            dbRun(updateSql, [newPoints, readerId], (err) => {
                 if (err) {
                     console.error("Error updating points:", err.message);
                 } else {
@@ -1483,9 +1590,9 @@ function addPoints(readerId, pointsToAdd) {
             });
         } else {
             // If the user doesn't have any points yet, insert a new row
-            const insertSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
+            const insertSql = `INSERT INTO userpoints (reader_id, user_points) VALUES ($1, $2)`;
 
-            db.run(insertSql, [readerId, pointsToAdd], (err) => {
+            dbRun(insertSql, [readerId, pointsToAdd], (err) => {
                 if (err) {
                     console.error("Error inserting new points:", err.message);
                 } else {
@@ -1498,18 +1605,19 @@ function addPoints(readerId, pointsToAdd) {
 }
 function updateReaderLevel(readerId, totalPoints) {
     // Fetch the level that corresponds to the reader's total points
-    const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
+    const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= $1 ORDER BY min_points DESC LIMIT 1`;
 
-    db.get(levelSql, [totalPoints], (err, level) => {
+    dbGet(levelSql, [totalPoints], (err, level) => {
         if (err) {
             console.error('Error fetching level:', err.message);
         } else if (level) {
             // Update the reader's level in the readers table
-            const updateLevelSql = `UPDATE readers SET current_level_id = ? WHERE id = ?`;
-            db.run(updateLevelSql, [level.id, readerId], (err) => {
+            const updateLevelSql = `UPDATE readers SET current_level_id = $1 WHERE id = $2`;
+            dbRun(updateLevelSql, [level.id, readerId], (err) => {
                 if (err) {
                     console.error('Error updating reader level:', err.message);
                 } else {
+                    
                     console.log(`Updated reader ${readerId} to level: ${level.level_name}`);
                 }
             });
@@ -1527,7 +1635,7 @@ app.get('/leaderboard', (req, res) => {
         LIMIT 10
     `;
 
-    db.all(leaderboardSql, [], (err, rows) => {
+    dbAll(leaderboardSql, [], (err, rows) => {
         if (err) {
             console.error('Error retrieving leaderboard:', err.message);
             return res.status(500).send('Error retrieving leaderboard');
@@ -1545,11 +1653,11 @@ app.get('/reader-reports/:readerId', (req, res) => {
         SELECT user_chapters.chapter_id, chaptersmaster.book, chaptersmaster.chapter, user_chapters.timestamp
         FROM user_chapters
         JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
-        WHERE user_chapters.reader_id = ?
+        WHERE user_chapters.reader_id = $1
         ORDER BY user_chapters.timestamp DESC, chaptersmaster.chapter ASC
     `;
 
-    db.all(reportsSql, [readerId], (err, reports) => {
+    dbAll(reportsSql, [readerId], (err, reports) => {
         if (err) {
             console.error('Error retrieving reports:', err.message);
             return res.status(500).send('Error retrieving reports');

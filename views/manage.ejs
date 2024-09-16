@@ -101,21 +101,41 @@
                     </tbody>
                 </table>
             
-                <form action="/addReader" method="POST">
-                    <input type="hidden" name="familyId" value="<%= family.family_id %>">
-                    <div class="form-group">
-                        <input type="text" name="readerName" class="form-control w-50 mx-auto" placeholder="Reader Name" required>
+                <div class="container mt-5">
+                    <!-- Add Reader Form -->
+                    <h3 class="mb-4 text-center">Add a Reader</h3>
+                    <form action="/addReader" method="POST" class="w-50 mx-auto">
+                        <input type="hidden" name="familyId" value="<%= family.family_id %>">
+                        <div class="form-group">
+                            <input type="text" name="readerName" class="form-control" placeholder="Enter Reader Name" required>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-block mt-3">Add Reader</button>
+                    </form>
+                
+                    <!-- Share Join Token Section -->
+                    <div class="text-center mt-5">
+                        <p>Share this code to allow others to join your family group:</p>
+                        <div class="input-group w-50 mx-auto">
+                            <input type="text" class="form-control" value="<%= joinToken %>" id="joinTokenInput" readonly>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-primary" type="button" onclick="copyJoinToken()">Copy</button>
+                            </div>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary mt-3">Add Reader</button>
-                </form>
-                <div class="container mt-4">
-                    <p>
-                        Share this code to allow others to join your family group:
-                        <input type="text" class="form-control w-50 d-inline" value="<%= joinToken %>" id="joinTokenInput" readonly>
-                        <button class="btn btn-primary ml-2" onclick="copyJoinToken()">Copy</button>
-                    </p>
+                
+                    <!-- Edit Family Name Button -->
+                    <div class="text-center mt-5">
+                        <button class="btn btn-warning" id="editFamilyNameBtn">Edit Family Name</button>
+                    </div>
+                
+                    <!-- Leave Family Section -->
+                    <div class="text-center mt-5">
+                        <form action="/leave-family" method="POST" onsubmit="return confirm('Are you sure you want to leave your family?');">
+                            <button type="submit" class="btn btn-danger">Leave Family</button>
+                        </form>
+                    </div>
                 </div>
-            
+                
                 <script>
                     function copyJoinToken() {
                         var copyText = document.getElementById("joinTokenInput");
@@ -124,10 +144,7 @@
                         alert("Join token copied: " + copyText.value);
                     }
                 </script>
-                <div class="container mt-4">
-                <form action="/leave-family" method="POST" onsubmit="return confirm('Are you sure you want to leave your family?');">
-                    <button type="submit" class="btn btn-danger">Leave Family</button>
-                </form>
+                
                 </div>
             <% } %>
             
