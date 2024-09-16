@@ -72,9 +72,17 @@
         </div>
         <% if (isLoggedIn) { %>
             <% if (typeof activeReaderName !== 'undefined' && activeReaderName) { %>
-                <span class="navbar-text">
-                    Active Reader: <a href="/reader-profile" class="nav-link d-inline"><%= activeReaderName %></a> | Points: <%= activeReaderPoints %>
-                </span>
+                <div class="d-flex align-items-center">
+                    <!-- Profile Image on the Left -->
+                    <span>Active Reader:  </span>  
+                    <div class="profile-image">
+                        <img src="/ml<%= activeReaderLevelId %>.webp" alt="Level Image" class="img-fluid rounded-circle" style="height: 1.5em;">
+                    </div>
+                    
+                    <span class="navbar-text ml-2">
+                        <a href="/reader-profile" class="d-inline"><%= activeReaderName %></a> | Points: <%= activeReaderPoints %>
+                    </span>
+                </div>
             <% } else { %>
                 <span class="navbar-text">
                     No active reader selected

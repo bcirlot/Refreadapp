@@ -2,14 +2,7 @@
     <div id="maincontent" class="mt-4">
         <h1 class="mb-4">Record a Chapter Range</h1>
         <form action="/record" method="post" id="chapterForm">
-            <div class="form-group">
-                <label for="readerId">Select Reader:</label>
-                <select id="readerId" name="readerId" class="form-control" required>
-                    <% readers.forEach(function(reader) { %>
-                        <option value="<%= reader.id %>"><%= reader.reader_name %></option>
-                    <% }); %>
-                </select>
-            </div>
+          
 
             <input type="hidden" id="startChapterId" name="startChapterId" required>
             <input type="hidden" id="endChapterId" name="endChapterId" required>
@@ -22,8 +15,12 @@
                         <button type="button" class="collapsible btn btn-secondary w-100 text-left"><%= book %></button>
                         <div class="content mt-2">
                             <div class="row">
+                                    <div class="col-12">
+                                        <span class="d-block mb-3">Select Start and End Chapters:</span>
+                                    </div>
                                 <% chaptersByBook[book].forEach(function(chapter) { %>
                                     <div class="col-1 mb-1">
+                                        
                                         <div class="chapter-item btn btn-outline-primary" data-start="<%= chapter.chapter %>" data-end="<%= chapter.chapter %>">
                                             <%= chapter.chapter %>
                                         </div>

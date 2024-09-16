@@ -3,7 +3,7 @@
         <!-- Profile Image on the Left -->
         <div class="col-auto">
             <div class="profile-image">
-                <img src="/ml<%= currentLevelId %>.webp" alt="Level Image" class="img-fluid rounded-circle" style="width: 150px;">
+                <img src="/ml<%= currentLevelId ? currentLevelId : 1 %>.webp" alt="Level Image" class="img-fluid rounded-circle" style="width: 150px;">
             </div>
         </div>
 
@@ -16,9 +16,14 @@
     </div> 
     
     <div class="my-4">
-        <h3>Reader Tools:</h3>
-        <a href="/reader-progress" class="btn btn-primary">View Reader's Bible Progress</a>
+        <h3 class="mb-3">Reader Tools:</h3>
+        <div class="btn-group" role="group" aria-label="Reader Tools">
+            <a href="/reader-progress" class="btn btn-primary btn-lg mr-2">View Progress</a>
+            <a href="/record" class="btn btn-success btn-lg mr-2">Record Chapters</a>
+            <a href="/record-by-book" class="btn btn-info btn-lg">Record Books</a>
+        </div>
     </div>
+    
     
     <!-- <span class="badge badge-success"><%= level %></span> -->
     
@@ -37,7 +42,7 @@
         <p><%= levelDescription %></p>
     </div>
     <div class="profile-image">
-        <img src="/ml<%= currentLevelId %>.webp" alt="Level Image" class="img-fluid">
+        <img src="/ml<%= currentLevelId ? currentLevelId : 1 %>.webp" alt="Level Image" class="img-fluid">
     </div>
     
     

@@ -2,14 +2,7 @@
     <h1>Record by Book</h1>
     
     <form action="/record-by-book" method="post" id="recordBookForm">
-        <div class="form-group">
-            <label for="readerId">Select Reader:</label>
-            <select id="readerId" name="readerId" class="form-control" required>
-                <% readers.forEach(function(reader) { %>
-                    <option value="<%= reader.id %>"><%= reader.reader_name %></option>
-                <% }); %>
-            </select>
-        </div>
+        
 
         <div class="form-group">
             <label>Select Book(s):</label>

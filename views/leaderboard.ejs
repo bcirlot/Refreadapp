@@ -13,7 +13,13 @@
             <% leaderboard.forEach(function(reader, index) { %>
                 <tr>
                     <td><%= index + 1 %></td>
-                    <td><%= reader.reader_name %></td>
+                    <td style="font-size: 1.5em;"> <!-- Make the name larger -->
+                        <!-- Profile Image with larger size -->
+                        <img src="/ml<%= reader.current_level_id ? reader.current_level_id : 1 %>.webp" alt="Level Image" 
+                             class="img-fluid rounded-circle" 
+                             style="height: 50px; width: 50px; margin-right: 15px;"> <!-- Increased size -->
+                        <%= reader.reader_name %>
+                    </td>
                     <td><%= reader.total_points %></td>
                 </tr>
             <% }); %>
