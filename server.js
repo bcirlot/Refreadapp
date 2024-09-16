@@ -16,7 +16,7 @@ const { execSync } = require('child_process');
 const flash = require('connect-flash');
 const app = express();
 const expressLayouts = require('express-ejs-layouts');
-const port = 3000;
+
 
 //app.* stuff
 app.use(express.urlencoded({ extended: false }));
@@ -1560,7 +1560,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 80;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
