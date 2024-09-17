@@ -233,7 +233,7 @@ app.get('/select-reader', (req, res) => {
         }
 
         if (readers.length === 0) {
-            return res.redirect('/create-family'); // Redirect if no readers exist
+            return res.redirect('/manage'); // Redirect if no readers exist
         }
 
         // Render the select reader page
