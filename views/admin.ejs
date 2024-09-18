@@ -1,22 +1,41 @@
-<h1>Admin Dashboard</h1>
+<h1 class="text-center mt-4">Admin Dashboard</h1>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-           
-            <th>Username</th>
-            <th>Email</th>
-            <th>Role</th>
-        </tr>
-    </thead>
-    <tbody>
-        <% users.forEach(function(user) { %>
-            <tr>
-                
-                <td><%= user.name %></td>
-                <td><%= user.email %></td>
-                <td><%= user.role %></td>
-            </tr>
-        <% }); %>
-    </tbody>
-</table>
+<!-- Form to clear user points and chapters -->
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <form action="/admin/clear-tables" method="POST" onsubmit="return confirm('Are you sure you want to clear all user points and chapters? This action cannot be undone.');">
+                <button type="submit" class="btn btn-danger btn-lg">Clear User Points and Chapters</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Table to show users -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% users.forEach(function(user) { %>
+                            <tr>
+                                <td><%= user.name %></td>
+                                <td><%= user.truncatedEmail %></td>
+                                <td><span class="badge badge-<%= user.role === 'admin' ? 'success' : 'secondary' %>">
+                                    <%= user.role %></span></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

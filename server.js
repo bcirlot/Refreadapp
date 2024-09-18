@@ -1264,6 +1264,14 @@ app.get('/admin', (req, res, next) => {
             console.error(err);
             return res.status(500).send('Server Error');
         }
+          // Truncate email addresses to a max of 20 characters
+          const maxEmailLength = 15;
+          users = users.map(user => {
+              return {
+                  ...user,
+                  truncatedEmail: user.email.length > maxEmailLength ? user.email.substring(0, maxEmailLength) + '...' : user.email
+              };
+          });
         res.render('admin', { users });
     });
     
@@ -1334,6 +1342,43 @@ app.get('/unread-chapters', (req, res) => {
 });
 
 //Administration stuff
+// POST route to clear userpoints and userchapters
+app.post('/admin/clear-tables', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).send('Access denied');
+    }
+
+    // SQL commands to clear userpoints and userchapters tables
+    const deleteUserPointsSql = `DELETE FROM userpoints`;
+    const deleteUserChaptersSql = `DELETE FROM user_chapters`;
+    const resetUserChaptersSeqSql = `DELETE FROM sqlite_sequence WHERE name='user_chapters'`;
+
+    // Execute the SQL queries
+    db.run(deleteUserPointsSql, (err) => {
+        if (err) {
+            console.error('Error deleting userpoints:', err.message);
+            return res.status(500).send('Error clearing userpoints table.');
+        }
+        console.log("cleared points");
+        db.run(deleteUserChaptersSql, (err) => {
+            if (err) {
+                console.error('Error deleting userchapters:', err.message);
+                return res.status(500).send('Error clearing userchapters table.');
+            }
+            db.run(resetUserChaptersSeqSql, (err) => {
+                if (err) {
+                    console.error('Error resetting userchapters sequence:', err.message);
+                    return res.status(500).send('Error resetting userchapters sequence.');
+                }
+
+                // After all operations are successful, redirect back to the admin page
+                req.flash('success', 'User points and chapters cleared successfully!');
+                res.redirect('/admin');
+            });
+        });
+    });
+});
+
 app.post('/clear-chapters', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).send('Forbidden'); // Only allow admins
