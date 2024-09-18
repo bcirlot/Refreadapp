@@ -814,12 +814,12 @@ app.post('/record', (req, res) => {
 });
 // The function to generate a thank you message
 async function generateThankYouMessage(readerName, pointsToAdd) {
-    const prompt = `Write a thank-you message for a user named ${readerName} who has just reported chapters and earned ${pointsToAdd} points. Speak in the voice of Martin Luther, the reformation hero. Use sarcasm. Keep the message short.`;
+    const prompt = `You will write as though you are Martin Luther the Reformer. You have a very high view of the Bible. You have a very low view of humanity. Write a thank-you message for a user named ${readerName} who has just reported chapters and earned ${pointsToAdd} points. Use sarcasm and be very pessimistic, though grateful that at least the user did something fruitful with their time. Keep the message short and do not include a formal closing or state your name. Make sure all your words fit within the time frame and religoius beliefs of early protestantism.`;
 
     try {
         const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }]
+            model: "gpt-4o-mini",
+            messages: [{ role: "system", content: prompt }]
         });
 
         const message = response.choices[0].message.content;
@@ -1630,7 +1630,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 80;
+const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
