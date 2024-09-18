@@ -781,67 +781,65 @@ app.post('/record', (req, res) => {
     }
 
     const userId = req.session.userId;
-    const readerId = req.session.activeReaderId; // Get the active reader ID from the session
-    const startChapter = req.body.startChapterId;
-    const endChapter = req.body.endChapterId;
+    const readerId = req.session.activeReaderId; // Use active reader ID from session
     const bookName = req.body.bookName;
+    const startChapter = parseInt(req.body.startChapterId);
+    const endChapter = parseInt(req.body.endChapterId);
 
-    console.log(`Received form submission: Reader ID - ${readerId}, Book - ${bookName}, Start Chapter - ${startChapter}, End Chapter - ${endChapter}`);
-    if (!bookName) {
-        return res.status(400).send('Book name is missing.');
-    }
-    if (!startChapter || !endChapter) {
-        return res.status(400).send('Missing required data.');
+    if (!bookName || !startChapter || !endChapter || startChapter > endChapter) {
+        return res.status(400).send('Invalid chapter range or missing data.');
     }
 
-    const startChapterId = parseInt(startChapter);
-    const endChapterId = parseInt(endChapter);
-
-    if (startChapterId > endChapterId) {
-        console.error(`Error: Start chapter (${startChapterId}) cannot be greater than end chapter (${endChapterId}).`);
-        return res.status(400).send('Invalid chapter range.');
-    }
-
-    const sql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
-    const stmt = db.prepare(sql);
-    let pointsToAdd = 0;  // Track the total points to add
-
-    let pendingOperations = 0;
+    const chapters = Array.from({ length: endChapter - startChapter + 1 }, (_, i) => startChapter + i);
+    recordChapters(userId, readerId, chapters, bookName, res, req, '/reader-profile');
+});
+function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute) {
+    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
+    const stmt = db.prepare(insertChapterSql);
+    let totalPointsToAdd = 0;
+    let pendingOperations = chapters.length;
     let hasErrorOccurred = false;
 
-    for (let chapterId = startChapterId; chapterId <= endChapterId; chapterId++) {
-        const chapterName = `${bookName} ${chapterId}`;
-        pendingOperations++;
-
-        console.log(`Finding chapter in the database: ${chapterName}`); // Log the chapter being searched in the DB
-
+    chapters.forEach(chapterId => {
         db.get(`SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`, [bookName, chapterId], (err, row) => {
             if (err) {
-                console.error(`Error finding chapter ${chapterName}:`, err.message);
+                console.error(`Error finding chapter ${chapterId}:`, err.message);
                 hasErrorOccurred = true;
             } else if (row) {
-                console.log(`Found chapter ID for ${chapterName}: ${row.id}`); // Log found chapter ID
-                stmt.run([userId, readerId, row.id], (err) => {
-                    if (err) {
-                        console.error(`Error inserting chapter ${chapterId}:`, err.message);
-                        hasErrorOccurred = true;
-                    } 
+                // Perform the completion check BEFORE inserting the chapter into the database
+                checkForCompletion(readerId, row.id, (isCompletionChapter) => {
+                    if (isCompletionChapter) {
+                        totalPointsToAdd += 5; // 5 points for completion chapters
+                    } else {
+                        totalPointsToAdd += 1; // 1 point for regular chapters
+                    }
+
+                    // Now that we've checked for completion, insert the chapter
+                    stmt.run([userId, readerId, row.id], (err) => {
+                        if (err) {
+                            console.error(`Error inserting chapter ${chapterId}:`, err.message);
+                            hasErrorOccurred = true;
+                        }
+
+                        pendingOperations--;
+
+                        if (pendingOperations === 0) {
+                            finalizeTransaction();
+                        }
+                    });
                 });
-                pointsToAdd++;
             } else {
-                console.error(`Chapter ${chapterName} not found.`);
+                console.error(`Chapter ${chapterId} not found.`);
                 hasErrorOccurred = true;
-            }
-
-            pendingOperations--;
-
-            if (pendingOperations === 0) {
-                finalizeStatement();
+                pendingOperations--;
+                if (pendingOperations === 0) {
+                    finalizeTransaction();
+                }
             }
         });
-    }
+    });
 
-    function finalizeStatement() {
+    function finalizeTransaction() {
         stmt.finalize((err) => {
             if (err) {
                 console.error('Error finalizing statement:', err.message);
@@ -853,18 +851,48 @@ app.post('/record', (req, res) => {
                 return res.status(500).send('Error occurred while recording some chapters.');
             }
 
-            if (pointsToAdd > 0) {
+            if (totalPointsToAdd > 0) {
                 // Call addPoints once with the total points to add
-                addPoints(readerId, pointsToAdd);
+                addPoints(readerId, totalPointsToAdd);
             }
 
-            console.log('Chapters successfully recorded.');
-            // Flash a success message
+            console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
             req.flash('success', `Thank you for reporting chapters!`);
-            res.redirect('/reader-profile');
+            res.redirect(redirectRoute);
         });
     }
-});
+}
+
+function checkForCompletion(readerId, chapterId, callback) {
+    const totalBibleChapters = 1189; // Total chapters in the Bible
+
+    // Get the total number of times each chapter has been read by the reader
+    const chapterReadsSql = `
+        SELECT chapter_id, COUNT(chapter_id) AS times_read
+        FROM user_chapters
+        WHERE reader_id = ?
+        GROUP BY chapter_id`;
+
+    db.all(chapterReadsSql, [readerId], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving chapter reads:', err.message);
+            return callback(false);
+        }
+
+        let timesReadArray = new Array(totalBibleChapters).fill(0);
+
+        // Populate the timesReadArray with the number of reads for each chapter
+        rows.forEach(row => {
+            timesReadArray[row.chapter_id - 1] = row.times_read;  // Subtract 1 because array index starts from 0
+        });
+
+        // Find the minimum number of times any chapter has been read
+        const minReads = Math.min(...timesReadArray);
+
+        // Check if this chapter is contributing to a new completion cycle
+        callback(timesReadArray[chapterId - 1] === minReads);
+    });
+}
 
 app.get('/record-by-book', (req, res) => {
     if (!req.session.userId) {
@@ -911,89 +939,30 @@ app.get('/record-by-book', (req, res) => {
     });
 });
 app.post('/record-by-book', (req, res) => {
-    const userId = req.session.userId; // Assuming userId is stored in the session
+    const userId = req.session.userId;
     const readerId = req.session.activeReaderId;
     let bookNames = req.body['bookName[]'];
 
-    // Check if bookNames is not an array (if only one book is selected)
     if (!Array.isArray(bookNames)) {
         bookNames = [bookNames];  // Convert single string to an array
     }
-
-    console.log('readerId:', readerId);
-    console.log('bookNames:', bookNames);
-    console.log('bookNames length:', bookNames.length);
 
     if (!readerId || !bookNames || bookNames.length === 0) {
         return res.status(400).send('Missing required data.');
     }
 
-    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
-    const stmt = db.prepare(insertChapterSql); // Prepare the statement for inserting chapters
-
-    let totalPointsToAdd = 0;
-    let pendingOperations = 0;
-    let hasErrorOccurred = false;
-
-    // Iterate over the bookNames array
     bookNames.forEach(bookName => {
-        console.log('Processing book:', bookName);
-        
-        // Fetch all chapters for the book
-        db.all(`SELECT id, chapter FROM chaptersmaster WHERE book = ?`, [bookName], (err, chapters) => {
-            if (err) {
-                console.error(`Error retrieving chapters for ${bookName}:`, err.message);
-                hasErrorOccurred = true;
-                return;
+        db.all(`SELECT chapter FROM chaptersmaster WHERE book = ?`, [bookName], (err, chapters) => {
+            if (err || !chapters.length) {
+                return res.status(500).send('Error retrieving chapters for the book.');
             }
 
-            pendingOperations += chapters.length;
-
-            // Insert each chapter into the user_chapters table
-            chapters.forEach(chapter => {
-                stmt.run([userId, readerId, chapter.id], (err) => {
-                    if (err) {
-                        console.error(`Error inserting chapter ${chapter.chapter} for ${bookName}:`, err.message);
-                        hasErrorOccurred = true;
-                    } else {
-                        totalPointsToAdd++; // Increment points for each chapter successfully added
-                    }
-
-                    pendingOperations--;
-
-                    if (pendingOperations === 0) {
-                        finalizeTransaction();
-                    }
-                });
-            });
+            const chapterIds = chapters.map(chapter => chapter.chapter);
+            recordChapters(userId, readerId, chapterIds, bookName, res, req, '/reader-profile');
         });
     });
-
-    function finalizeTransaction() {
-        stmt.finalize((err) => {
-            if (err) {
-                console.error('Error finalizing chapter insert statement:', err.message);
-                return res.status(500).send('Error recording chapters.');
-            }
-
-            if (hasErrorOccurred) {
-                console.log('Some errors occurred during the process.');
-                return res.status(500).send('Error occurred while recording some chapters.');
-            }
-
-            if (totalPointsToAdd > 0) {
-                // Add the total points to the userpoints table
-                addPoints(readerId, totalPointsToAdd);
-                console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
-                req.flash('success', `Thank you for reporting chapters!`);
-                res.redirect('/reader-profile');
-
-            } else {
-                res.redirect('/reader-profile');
-            }
-        });
-    }
 });
+
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
