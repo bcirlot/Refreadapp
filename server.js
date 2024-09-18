@@ -1107,6 +1107,11 @@ app.post('/addReader', (req, res) => {
     const userId = req.session.userId;
     const { familyId, readerName } = req.body;
 
+    if (!readerName || readerName.length > 20) {
+        req.flash('error', 'Reader name cannot exceed 20 characters.');
+        return res.redirect('/manage');
+    }
+
     // Insert a new reader associated with the logged-in user's family
     const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
     const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
@@ -1605,7 +1610,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 80;
+const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

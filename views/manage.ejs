@@ -46,7 +46,8 @@
                 <form action="/addReader" method="POST">
                     <input type="hidden" name="familyId" value="<%= family.family_id %>">
                     <div class="form-group">
-                        <input type="text" name="readerName" class="form-control w-50 mx-auto" placeholder="Your Name" required>
+                        <input type="text" name="readerName" class="form-control w-50 mx-auto" placeholder="Your Name" maxlength="20" required>
+                        <small class="form-text text-muted">Name should not exceed 20 characters.</small>
                     </div>
                     <button type="submit" class="btn btn-primary mt-3">Add Reader</button>
                 </form>
