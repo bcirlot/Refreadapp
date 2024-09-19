@@ -23,6 +23,13 @@
             <a href="/record-by-book" class="btn btn-info btn-lg">Record Books</a>
         </div>
     </div>
+    <div class="profile-referral">
+        <p>Share this link with others to earn 25 points:</p>
+        <input type="text" class="form-control w-50 d-inline" value="<%= protocol %>://<%= host %>/register?ref=<%= referralToken %>" readonly>
+        <button class="btn btn-primary ml-2" onclick="copyReferralLink()">Copy</button>
+    </div>
+    
+  
     
     
     <!-- <span class="badge badge-success"><%= level %></span> -->
@@ -47,5 +54,12 @@
     
     
 </div>
-
+<script>
+    function copyReferralLink() {
+        const copyText = document.querySelector('.profile-referral input');
+        copyText.select();
+        document.execCommand('copy');
+        alert("Referral link copied: " + copyText.value);
+    }
+</script>
 

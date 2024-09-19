@@ -18,26 +18,20 @@
             </div>
             <small class="form-text text-muted">Check the box next to each book you want to record.</small>
         </div>
-
+        
         <button type="submit" class="btn btn-primary">Record Book(s)</button>
     </form>
+    
 </div>
+<!-- Spinner HTML -->
 
+<div id="loadingSpinner" class="spinner-overlay" style="display:none;">
+    <div class="spinner-content">
+        <div class="double-bounce1"></div>
+        <div class="double-bounce2"></div>
+    </div>
+</div>
 <!-- Include JavaScript at the end of the page -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const recordBookForm = document.getElementById('recordBookForm');
-    
-    if (recordBookForm) {
-        recordBookForm.addEventListener('submit', function(e) {
-            const checkedBooks = document.querySelectorAll('input[name="bookName[]"]:checked');
-            console.log('Checked Books:', checkedBooks); // Debugging statement
-            if (checkedBooks.length === 0) {
-                e.preventDefault();
-                alert('Please select at least one book.');
-            }
-        });
-    }
-});
 
 </script>

@@ -269,7 +269,8 @@ app.get('/reader-profile', (req, res) => {
     // Fetch reader's points, current level, level_id, and description
     const readerSql = `
         SELECT readers.reader_name, COALESCE(SUM(userpoints.user_points), 0) as total_points, 
-               levels.level_name, levels.min_points, levels.id as level_id, levels.description
+               levels.level_name, levels.min_points, levels.id as level_id, levels.description, 
+               readers.referral_token
         FROM readers
         LEFT JOIN userpoints ON readers.id = userpoints.reader_id
         LEFT JOIN levels ON readers.current_level_id = levels.id
@@ -287,6 +288,17 @@ app.get('/reader-profile', (req, res) => {
         const currentMinPoints = readerData.min_points;
         const currentLevelId = readerData.level_id; // Get the level_id
         const levelDescription = readerData.description; // Get the level description
+        let referralToken = readerData.referral_token;
+
+        // If no referral token exists, generate one
+        if (!referralToken) {
+            referralToken = crypto.randomBytes(16).toString('hex');
+            db.run('UPDATE readers SET referral_token = ? WHERE id = ?', [referralToken, readerId], (err) => {
+                if (err) {
+                    console.error('Error generating referral token:', err.message);
+                }
+            });
+        }
 
         // Fetch the next level info
         const nextLevelSql = `SELECT level_name, min_points FROM levels WHERE min_points > ? ORDER BY min_points ASC LIMIT 1`;
@@ -294,7 +306,7 @@ app.get('/reader-profile', (req, res) => {
             let nextLevelPoints = nextLevel ? nextLevel.min_points : currentMinPoints;  // If no next level, keep current
             let progressPercentage = Math.min((totalPoints - currentMinPoints) / (nextLevelPoints - currentMinPoints) * 100, 100);
 
-            // Pass the level description to the view
+            // Pass all necessary data to the view
             res.render('reader-profile', {
                 readerName: readerData.reader_name,
                 readerTotalPoints: totalPoints,
@@ -303,7 +315,10 @@ app.get('/reader-profile', (req, res) => {
                 nextLevelPoints,
                 currentMinPoints,
                 currentLevelId, // Pass level_id to the view for dynamic image selection
-                levelDescription // Pass the level description to the view
+                levelDescription, // Pass the level description to the view
+                referralToken,  // Use the referralToken variable
+                protocol: req.protocol,
+                host: req.get('host')
             });
         });
     });
@@ -389,7 +404,6 @@ app.get('/reader-progress', (req, res) => {
         });
     });
 });
-
 app.post('/set-active-reader', (req, res) => {
     const readerId = req.body.readerId;
 
@@ -417,7 +431,6 @@ app.post('/set-active-reader', (req, res) => {
         res.redirect('/reader-profile');
     });
 });
-
 app.get('/logout', (req, res) => {
     req.session.destroy((err) => {
         if (err) {
@@ -427,17 +440,46 @@ app.get('/logout', (req, res) => {
         res.redirect('/');
     });
 });
+app.get('/register', (req, res) => {
+    const referralToken = req.query.ref;  // Extract the referral token from the query parameter
+
+    if (referralToken) {
+        // Check if the referral token exists
+        const findReaderSql = `SELECT id FROM readers WHERE referral_token = ?`;
+        db.get(findReaderSql, [referralToken], (err, reader) => {
+            if (err || !reader) {
+                console.error('Invalid referral token:', err ? err.message : 'No reader found');
+                req.flash('error', 'Invalid referral link.');
+                return res.redirect('/login');
+            }
+
+            // Save the referral ID in session or pass it to the registration form
+            req.session.referringReaderId = reader.id;
+
+            // Proceed to registration page, passing referral information
+            res.render('register', { referralReader: reader.id });  // Pass the referral reader id to the form if needed
+        });
+    } else {
+        // No referral token, just render the registration form as usual
+        res.render('register', { referralReader: null });
+    }
+});
 app.post('/register', (req, res) => {
     const { name, email, password } = req.body;
+    const referringReaderId = req.session.referringReaderId;  // Get the referring reader id from session
+
     const checkEmailSql = `SELECT * FROM users WHERE email = ?`;
     db.get(checkEmailSql, [email], (err, row) => {
         if (err) {
             console.error(err.message);
             return res.status(500).send('Error checking email');
         }
+
         if (row) {
             return res.render('login', { error: 'Email already in use. Please log in.' });
         }
+
+        // Hash the password before storing it
         bcrypt.hash(password, 10, (err, hashedPassword) => {
             if (err) {
                 console.error(err.message);
@@ -452,14 +494,29 @@ app.post('/register', (req, res) => {
                     return res.status(500).send('Error registering user');
                 }
 
+                const userId = this.lastID;
+
                 // Automatically log the user in after registration
-                req.session.userId = this.lastID;
+                req.session.userId = userId;
                 req.session.userName = name;
+
+                // Check if there is a referring reader
+                if (referringReaderId) {
+                    const addPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
+                    db.run(addPointsSql, [referringReaderId, 25], (err) => {
+                        if (err) {
+                            console.error('Error adding referral points:', err.message);
+                        }
+                    });
+                }
+
+                // Redirect to the manage page after successful registration
                 res.redirect('/manage');
             });
         });
     });
 });
+
 app.get('/forgot-password', (req, res) => {
     res.render('forgot-password', { error: null });
 });
@@ -1126,6 +1183,7 @@ app.post('/addReader', (req, res) => {
 
     const userId = req.session.userId;
     const { familyId, readerName } = req.body;
+    const referralToken = generateReferralToken();
 
     if (!readerName || readerName.length > 20) {
         req.flash('error', 'Reader name cannot exceed 20 characters.');
@@ -1133,9 +1191,9 @@ app.post('/addReader', (req, res) => {
     }
 
     // Insert a new reader associated with the logged-in user's family
-    const insertReaderSql = `INSERT INTO readers (family_id, reader_name) VALUES (?, ?)`;
+    const insertReaderSql = `INSERT INTO readers (family_id, reader_name, referral_token ) VALUES (?, ?, ?)`;
     const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
-    db.run(insertReaderSql, [familyId, readerName], function (err) {
+    db.run(insertReaderSql, [familyId, readerName, referralToken], function (err) {
         if (err) {
             console.error('Error adding reader:', err.message);
             return res.status(500).send('Error adding reader');
@@ -1240,6 +1298,9 @@ app.get('/edit-reader/:readerId', (req, res) => {
     });
 });
 app.post('/edit-reader/:readerId', (req, res) => {
+    if (!req.session.userId) {
+        return res.status(403).send('Access denied');
+    }
     const readerId = req.params.readerId;
     const newName = req.body.readerName;
 
@@ -1563,6 +1624,9 @@ function updateReaderLevel(readerId, totalPoints) {
             });
         }
     });
+}
+function generateReferralToken() {
+    return crypto.randomBytes(16).toString('hex'); // Creates a unique token
 }
 app.get('/leaderboard', (req, res) => {
     // Query to get the top 10 readers by points and their level ID
