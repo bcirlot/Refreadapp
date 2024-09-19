@@ -1255,6 +1255,9 @@ app.post('/edit-reader/:readerId', (req, res) => {
     });
 });
 app.post('/delete-reader/:readerId', (req, res) => {
+    if (!req.session.userId) {
+        return res.status(403).send('Access denied');
+    }
     const readerId = req.params.readerId;
 
     // Step 1: Delete all related chapters for this reader
@@ -1404,31 +1407,6 @@ app.post('/admin/clear-tables', (req, res) => {
     });
 });
 
-app.post('/clear-chapters', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).send('Forbidden'); // Only allow admins
-    }
-
-    runScriptSync('makeUserChapters.js');
-    console.log('All scripts have been executed.');
-});
-app.post('/clear-points', (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.status(403).send('Forbidden'); // Only allow admins
-    }
-
-    runScriptSync('clearUserPoints.js');
-    console.log('All scripts have been executed.');
-});
-function runScriptSync(scriptName) {
-    try {
-        console.log(`Running ${scriptName}...`);
-        const output = execSync(`node ${scriptName}`, { stdio: 'inherit' });
-        console.log(`Finished running ${scriptName}`);
-    } catch (error) {
-        console.error(`Error executing ${scriptName}:`, error.message);
-    }
-}
 app.get('/export-chapters-csv', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).send('Unauthorized');
