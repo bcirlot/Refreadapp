@@ -487,8 +487,8 @@ app.post('/register', (req, res) => {
             }
 
             // Insert the new user into the database
-            const insertUserSql = `INSERT INTO users (name, email, password) VALUES (?, ?, ?)`;
-            db.run(insertUserSql, [name, email, hashedPassword], function (err) {
+            const insertUserSql = `INSERT INTO users (name, email, password, referrer_id) VALUES (?, ?, ?, ?)`;
+            db.run(insertUserSql, [name, email, hashedPassword, referringReaderId], function (err) {
                 if (err) {
                     console.error(err.message);
                     return res.status(500).send('Error registering user');
@@ -506,12 +506,38 @@ app.post('/register', (req, res) => {
                     db.run(addPointsSql, [referringReaderId, 25], (err) => {
                         if (err) {
                             console.error('Error adding referral points:', err.message);
+                        } else {
+                            // Add flash message for the referring reader
+                            req.session.flashMessage = 'You have earned 25 points from a referral!';
                         }
                     });
                 }
 
                 // Redirect to the manage page after successful registration
                 res.redirect('/manage');
+            });
+        });
+    });
+});
+app.get('/referrals', (req, res) => {
+    const readerId = req.session.activeReaderId;
+
+    if (!readerId) {
+        return res.redirect('/select-reader');
+    }
+
+    // Query to find all users referred by the reader
+    const referralSql = `SELECT name, email FROM users WHERE referrer_id = ?`;
+    db.all(referralSql, [readerId], (err, referrals) => {
+        if (err) {
+            console.error("Error fetching referrals:", err.message);
+            return res.status(500).send('Error retrieving referral data');
+        }
+        db.get(`SELECT reader_name FROM readers WHERE id = ?`, [readerId], (err, reader) => {
+            const readerName = reader.reader_name;
+            res.render('referrals', {
+                readerName,
+                referrals
             });
         });
     });
@@ -1672,7 +1698,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 80;
+const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
