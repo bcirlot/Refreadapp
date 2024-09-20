@@ -14,22 +14,25 @@
             <p>Total Points: <%= readerTotalPoints %></p>
         </div>
     </div> 
-    
-    <div class="my-4">
-        <h3 class="mb-3">Reader Tools:</h3>
-        <div class="btn-group" role="group" aria-label="Reader Tools">
-            <a href="/reader-progress" class="btn btn-primary btn-lg mr-2">View Progress</a>
-            <a href="/record" class="btn btn-success btn-lg mr-2">Record Chapters</a>
-            <a href="/record-by-book" class="btn btn-info btn-lg">Record Books</a>
+    <div class="container my-5">
+        <h3 class="mb-4 text-center">Reader Tools</h3>
+        <div class="btn-group d-flex justify-content-center mb-4" role="group" aria-label="Reader Tools">
+            <a href="/reader-progress" class="btn btn-primary btn-lg mx-2">View Progress</a>
+            <a href="/record" class="btn btn-success btn-lg mx-2">Record Chapters</a>
+            <a href="/record-by-book" class="btn btn-info btn-lg mx-2">Record Books</a>
         </div>
-    </div>
-    <div class="profile-referral">
-        <p>Share this link with others to earn 25 points:</p>
-        <input type="text" class="form-control w-50 d-inline" value="<%= protocol %>://<%= host %>/register?ref=<%= referralToken %>" readonly>
-        <button class="btn btn-primary ml-2" onclick="copyReferralLink()">Copy</button>
-    </div>
-    <div class="btn-group" role="group" aria-label="Reader Tools">
-        <a href="/referrals" class="btn btn-info btn-lg">View Referrals</a>
+    
+        <div class="profile-referral text-center my-4">
+            <p>Share this link with others to earn 25 points:</p>
+            <div class="d-inline-block w-100 d-sm-flex justify-content-center">
+                <input type="text" class="form-control w-50 d-inline mb-2 mb-sm-0" value="<%= protocol %>://<%= host %>/register?ref=<%= referralToken %>" readonly>
+                <button class="btn btn-primary ml-2" onclick="copyReferralLink()">Copy</button>
+            </div>
+        </div>
+    
+        <div class="text-center mt-4">
+            <a href="/referrals" class="btn btn-info btn-lg">View Referrals</a>
+        </div>
     </div>
     
   

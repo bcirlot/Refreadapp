@@ -105,7 +105,9 @@
     width: 100px; /* You can adjust the size of the spinner */
     height: 100px;
 }
-
+table .smallerSize {
+    padding: 0;
+}
         
     </style>
     
@@ -199,7 +201,7 @@
         <!-- Content from specific pages will be injected here -->
         <%- body %>
     </div>
-    <footer class="footer bg-light text-center sticky-footer">
+    <footer class="footer bg-dark text-center sticky-footer">
         <div class="container">
             <span class="text-muted">Total Family Points: <% if (typeof totalPoints !== 'undefined') { %><%= totalPoints %><% } else { %>0<% } %></span>
             <a href="/leaderboard" class="text-muted">View Leaderboard</a>

@@ -1,0 +1,10 @@
+<!-- <h1><%= book %> <%= chapter %></h1> -->
+<div class="bible-chapter">
+    <%- passageHTML %>
+</div>
+<!-- Mark as Read Button -->
+<form action="/mark-chapter-read" method="POST">
+    <input type="hidden" name="bookName" value="<%= book %>">
+    <input type="hidden" name="chapter" value="<%= chapter %>">
+    <button type="submit" class="btn btn-primary mt-3">Mark as Read</button>
+</form>

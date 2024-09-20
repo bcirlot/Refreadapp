@@ -3,28 +3,48 @@
 
     <table class="table table-striped">
         <thead>
-            <tr>
-                <th scope="col">Rank</th>
-                <th scope="col">Reader Name</th>
-                <th scope="col">Total Points</th>
+            <tr class="smallerSize">
+                <th class="smallerSize" scope="col">#</th>
+                <th class="smallerSize" scope="col">Reader</th>
+                <th class="smallerSize" scope="col">Points</th>
             </tr>
         </thead>
         <tbody>
             <% leaderboard.forEach(function(reader, index) { %>
-                <tr>
-                    <td><%= index + 1 %></td>
-                    <td style="font-size: 1.5em;"> <!-- Make the name larger -->
-                        <!-- Profile Image with larger size -->
+                <tr class="<%= index === 0 ? 'gold-row' : index === 1 ? 'silver-row' : index === 2 ? 'bronze-row' : '' %>"> <!-- Apply medal classes for top 3 rows -->
+                    <td class="smallerSize"><%= index + 1 %></td>
+                    <td class="smallerSize theName" style="font-size: 1em;">
                         <img src="/ml<%= reader.current_level_id ? reader.current_level_id : 1 %>.webp" alt="Level Image" 
                              class="img-fluid rounded-circle" 
-                             style="height: 50px; width: 50px; margin-right: 15px;"> <!-- Increased size -->
+                             style="height: 40px; width: 40px; margin-right: 10px;">
                         <%= reader.reader_name %>
                     </td>
-                    <td><%= reader.total_points %></td>
+                    <td class="smallerSize"><%= reader.total_points %></td>
                 </tr>
             <% }); %>
         </tbody>
     </table>
+    
+    <!-- Styles for gold, silver, and bronze rows -->
+    <style>
+        .gold-row  {
+            background-color: #FFD700 !important; /* Gold background */
+            font-weight: bold;
+        }
+        /* .theName {
+            font-size: 2em;
+        } */
+        .silver-row {
+            background-color: #C0C0C0; /* Silver background */
+            font-weight: bold;
+        }
+        .bronze-row {
+            background-color: #CD7F32 !important; /* Bronze background */
+            font-weight: bold;
+        }
+    </style>
+    
+    
 
     <div class="text-center mt-4">
         <a href="/" class="btn btn-primary">Back to Home</a>

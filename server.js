@@ -1,4 +1,5 @@
 // Setup
+import axios from 'axios';
 import express from 'express';
 import sqlite3 from 'sqlite3';
 import session from 'express-session';
@@ -897,7 +898,7 @@ app.post('/record', (req, res) => {
 });
 // The function to generate a thank you message
 async function generateThankYouMessage(readerName, pointsToAdd) {
-    const prompt = `You will write as though you are Martin Luther the Reformer. You have a very high view of the Bible. You have a very low view of humanity. Write a thank-you message for a user named ${readerName} who has just reported chapters and earned ${pointsToAdd} points. Use sarcasm and be very pessimistic, though grateful that at least the user did something fruitful with their time. Keep the message short and do not include a formal closing or state your name. Make sure all your words fit within the time frame and religoius beliefs of early protestantism.`;
+    const prompt = `You will write as though you are Martin Luther the Reformer. You have a very high view of the Bible. You have a very low view of humanity. Write a two sentence thank-you message for a user named ${readerName} who has just reported chapters (which is a good thing) and earned ${pointsToAdd} points. Use sarcasm and be very pessimistic, though grateful that at least the user did something fruitful with their time. Keep the message short and do not include a formal closing or state your name. Make sure all your words fit within the time frame and religoius beliefs of early protestantism, salvation by grace alone through faith alone and in Christ alone, all to the glory of God alone.`;
 
     try {
         const response = await openai.chat.completions.create({
@@ -914,7 +915,7 @@ async function generateThankYouMessage(readerName, pointsToAdd) {
 }
 
 // Update the recordChapters function to use OpenAI API
-async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute) {
+async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
     const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
     const stmt = db.prepare(insertChapterSql);
     let totalPointsToAdd = 0;
@@ -981,7 +982,7 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
             }
 
             if (totalPointsToAdd > 0) {
-                addPoints(readerId, totalPointsToAdd);
+                await addPoints(readerId, totalPointsToAdd);
 
                 // Generate the thank-you message using ChatGPT
                 const customMessage = await generateThankYouMessage(readerName, totalPointsToAdd);
@@ -993,9 +994,15 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
             } else {
                 res.redirect(redirectRoute);
             }
+
+            // Call the callback if it exists and is a function
+            if (typeof callback === 'function') {
+                callback(null);
+            }
         });
     }
 }
+
 
 function checkForCompletion(readerId, chapterId, callback) {
     const totalBibleChapters = 1189; // Total chapters in the Bible
@@ -1096,6 +1103,89 @@ app.post('/record-by-book', (req, res) => {
         });
     });
 });
+// Route to fetch a chapter from the ESV API
+app.get('/chapter/:book/:chapter', async (req, res) => {
+    const book = req.params.book;
+    const chapter = req.params.chapter;
+    const chapterIdSql = `SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`;
+
+    try {
+        // Fetch the chapter ID from the database
+        const row = await new Promise((resolve, reject) => {
+            db.get(chapterIdSql, [book, chapter], (err, row) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(row);
+            });
+        });
+
+        if (!row) {
+            return res.status(404).send('Chapter not found');
+        }
+        
+        const chapterId = row.id;  // Get the chapterId from the database
+
+        // Make a request to the ESV API
+        const esvResponse = await axios.get('https://api.esv.org/v3/passage/html/', {
+            params: {
+                q: `${book} ${chapter}`,  // e.g., 'John 1'
+                'include-footnotes': false,
+                'include-headings': false,
+                'include-short-copyright': false
+            },
+            headers: {
+                Authorization: `Token ${process.env.ESV_API_KEY}`
+            }
+        });
+
+        // Extract the passage HTML
+        const passageHTML = esvResponse.data.passages[0];
+
+        // Render the HTML or pass it to the frontend
+        res.render('chapter', { passageHTML, book, chapter, chapterId });
+
+    } catch (error) {
+        if (error.message === 'Chapter not found') {
+            return res.status(404).send(error.message);
+        }
+        console.error('Error:', error.message);
+        res.status(500).send('Error processing the request.');
+    }
+});
+
+app.post('/mark-chapter-read', (req, res) => {
+    const userId = req.session.userId;
+    const readerId = req.session.activeReaderId;
+    const bookName = req.body.bookName;
+    const chapterNumber = parseInt(req.body.chapter); // Use chapter number, not chapterId
+
+    if (!userId || !readerId || !bookName || !chapterNumber) {
+        return res.status(400).send('Missing required data.');
+    }
+
+    // Fetch the correct chapterId from the database based on bookName and chapter number
+    const chapterIdSql = `SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`;
+
+    db.get(chapterIdSql, [bookName, chapterNumber], (err, row) => {
+        if (err) {
+            console.error('Error retrieving chapter ID:', err.message);
+            return res.status(500).send('Error retrieving chapter.');
+        }
+        if (!row) {
+            return res.status(404).send('Chapter not found.');
+        }
+
+        const chapterId = row.id; // Correct chapterId fetched from the database
+
+        // Now use the fetched chapterId in the recordChapters function
+        recordChapters(userId, readerId, [chapterNumber], bookName, res, req, '/reader-profile', () => {
+            console.log('Chapter marked as read and points updated.');
+        });
+    });
+});
+
+
 
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
@@ -1593,64 +1683,79 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
 });
 
 //Gamification Components
-function addPoints(readerId, pointsToAdd) {
-    // First, check if the user already has an entry in the userpoints table
+function addPoints(readerId, pointsToAdd, callback) {
     const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
 
     db.get(checkSql, [readerId], (err, row) => {
         if (err) {
             console.error("Error checking for existing points:", err.message);
-            return;
+            return callback(err); // Pass the error to the callback
         }
 
         if (row) {
-            // If the user already has points, calculate the new total points
             const newPoints = row.user_points + pointsToAdd;
             const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
-            console.log(`New total points: ${newPoints}`);
+
             db.run(updateSql, [newPoints, readerId], (err) => {
                 if (err) {
                     console.error("Error updating points:", err.message);
-                } else {
-                    console.log(`Updated points for reader ${readerId}. New total: ${newPoints}`);
-                    updateReaderLevel(readerId, newPoints);
+                    return callback(err); // Pass the error to the callback
                 }
+
+                console.log(`Updated points for reader ${readerId}. New total: ${newPoints}`);
+                updateReaderLevel(readerId, newPoints, callback); // Pass the callback to updateReaderLevel
             });
         } else {
-            // If the user doesn't have any points yet, insert a new row
             const insertSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
 
             db.run(insertSql, [readerId, pointsToAdd], (err) => {
                 if (err) {
                     console.error("Error inserting new points:", err.message);
-                } else {
-                    console.log(`Inserted ${pointsToAdd} points for reader ${readerId}.`);
-                    updateReaderLevel(readerId, pointsToAdd);
+                    return callback(err); // Pass the error to the callback
                 }
+
+                console.log(`Inserted ${pointsToAdd} points for reader ${readerId}.`);
+                updateReaderLevel(readerId, pointsToAdd, callback); // Pass the callback to updateReaderLevel
             });
         }
     });
 }
-function updateReaderLevel(readerId, totalPoints) {
-    // Fetch the level that corresponds to the reader's total points
+
+function updateReaderLevel(readerId, totalPoints, callback) {
     const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
 
     db.get(levelSql, [totalPoints], (err, level) => {
         if (err) {
             console.error('Error fetching level:', err.message);
-        } else if (level) {
-            // Update the reader's level in the readers table
+            if (typeof callback === 'function') {
+                return callback(err);
+            }
+        }
+
+        else if (level) {
             const updateLevelSql = `UPDATE readers SET current_level_id = ? WHERE id = ?`;
+
             db.run(updateLevelSql, [level.id, readerId], (err) => {
                 if (err) {
                     console.error('Error updating reader level:', err.message);
-                } else {
-                    console.log(`Updated reader ${readerId} to level: ${level.level_name}`);
+                    if (typeof callback === 'function') {
+                        return callback(err);
+                    }
+                }
+
+                console.log(`Updated reader ${readerId} to level: ${level.level_name}`);
+                if (typeof callback === 'function') {
+                    callback(null);
                 }
             });
+        } else {
+            if (typeof callback === 'function') {
+                callback(null);
+            }
         }
     });
 }
+
 function generateReferralToken() {
     return crypto.randomBytes(16).toString('hex'); // Creates a unique token
 }
