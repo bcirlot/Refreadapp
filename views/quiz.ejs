@@ -1,0 +1,171 @@
+<button id="clearConversationButton">Clear Conversation</button>
+<div id="chatbot">
+    <h3>Chat with the Assistant</h3>
+    <div id="chatbotWindow">
+        <div id="chatMessages"></div>
+    </div>
+    <form id="chatbotForm">
+        <input type="text" id="userMessage" placeholder="Type your message here..." value="Start quiz" required>
+        <button type="submit">Send</button>
+    </form>
+</div>
+<script>
+    async function appendAssistantMessage(data) {
+        const assistantMessageDiv = document.createElement('div'); // Use div for better styling control
+        assistantMessageDiv.classList.add('message', 'assistant-message');
+        assistantMessageDiv.textContent = data;  // Insert formatted text
+        chatMessages.appendChild(assistantMessageDiv);
+    }
+</script>
+<script>
+    document.getElementById('clearConversationButton').addEventListener('click', async () => {
+        try {
+            const response = await fetch('/clear-conversation', {
+                method: 'POST',
+            });
+            const data = await response.text();
+            alert(data);  // Notify the user that the conversation has been cleared
+        } catch (err) {
+            alert('Error clearing conversation: ' + err.message);
+        }
+    });
+</script>
+
+<style>
+    #chatbot {
+        max-width: 500px;
+        margin: 0 auto;
+        font-family: Arial, sans-serif;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        padding: 0;
+        background-color: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+    .assistant-message {
+        white-space: pre-wrap; /* Preserve whitespace and line breaks */
+    }
+    #chatbot h3 {
+        text-align: center;
+        color: #333;
+        margin: 0;
+        padding: 10px;
+        border-bottom: 1px solid #ccc;
+    }
+
+    #chatbotWindow {
+        flex: 1;
+        border: 1px solid #ccc;
+        overflow-y: auto;
+        padding: 10px;
+        background-color: #fff;
+    }
+
+    #chatMessages {
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
+        overflow-y: auto;
+    }
+
+    .message {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 10px;
+        max-width: 80%;
+        word-wrap: break-word;
+    }
+
+    .user-message {
+        align-self: flex-end;
+        background-color: #33b3f8;
+    }
+
+    .assistant-message {
+        align-self: flex-start;
+        background-color: #cdd3d8;
+    }
+
+    #chatbotForm {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        border-top: 1px solid #ccc;
+        background-color: #f1f1f1;
+        position: sticky;
+        bottom: 60px;
+        width: 100%;
+    }
+
+    #userMessage {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin-right: 10px;
+    }
+
+    #chatbotForm button {
+        padding: 10px;
+        background-color: #007bff;
+        border: none;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    #chatbotForm button:hover {
+        background-color: #0056b3;
+    }
+</style>
+
+<script>
+    // Automatically submit an initial message when the page loads
+ 
+
+    const chatbotForm = document.getElementById('chatbotForm');
+    const chatMessages = document.getElementById('chatMessages');
+
+    chatbotForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await submitMessage();
+    });
+
+    async function submitMessage() {
+        const userMessage = document.getElementById('userMessage').value;
+
+        // Append the user message to the chat
+        const userMessageDiv = document.createElement('div');
+        userMessageDiv.classList.add('message', 'user-message');
+        userMessageDiv.textContent = userMessage;
+        chatMessages.appendChild(userMessageDiv);
+        
+        // Clear input field after submission
+        document.getElementById('userMessage').value = '';
+
+        try {
+            const response = await fetch('/chatbot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: userMessage }),
+            });
+
+            const data = await response.text();
+
+            // Append the assistant message to the chat
+            const assistantMessageDiv = document.createElement('div');
+            assistantMessageDiv.classList.add('message', 'assistant-message');
+            assistantMessageDiv.textContent = data;
+            chatMessages.appendChild(assistantMessageDiv);
+        } catch (err) {
+            const errorDiv = document.createElement('div');
+            errorDiv.classList.add('message', 'assistant-message');
+            errorDiv.textContent = "Error: " + err.message;
+            chatMessages.appendChild(errorDiv);
+        }
+    }
+</script>

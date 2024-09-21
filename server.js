@@ -199,6 +199,9 @@ transporter.verify((error, success) => {
 });
 
 // User Login/Register Routes
+app.get('/quiz', (req, res) => {
+    res.render('quiz', { error: null });
+});
 app.get('/login', (req, res) => {
     res.render('login', { error: null });
 });
@@ -914,6 +917,125 @@ async function generateThankYouMessage(readerName, pointsToAdd) {
     }
 }
 
+app.post('/chatbot', async (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');  // Redirect to login if not logged in
+    }
+
+    // Check if there's an active reader selected
+    const readerId = req.session.activeReaderId;
+    const activeReaderName = req.session.activeReaderName;
+    
+    if (!readerId) {
+        return res.redirect('/select-reader');  // Redirect to reader selection if no active reader
+    }
+
+    // Initialize conversations object if not present
+    if (!req.session.conversations) {
+        req.session.conversations = {};
+    }
+
+    const initialPrompt = `You are a helpful assistant that creates quizzes for the user, consisting of 5 multiple-choice Bible-based questions. Ask only one question at a time, wait for the user's response before asking the next question, and provide hints or Bible references if the user struggles. Track the user's score, and if they answer at least 4 questions correctly, call the addPoints function to reward them 5 points. Gradually increase the difficulty of quizzes as the user progresses. The active reader name is ${activeReaderName} with id ${readerId}.`;
+    console.log('the initial prompt:', initialPrompt)
+    // Ensure system message is always present in the conversation
+    if (!req.session.conversations[readerId]) {
+        console.log(`Initializing conversation for reader ${readerId}`);
+        req.session.conversations[readerId] = [
+            { role: "system", content: initialPrompt }
+        ];  // Initialize conversation for this reader
+    } else {
+        // Check if the exact system message already exists in the conversation
+        const systemMessageExists = req.session.conversations[readerId].some(
+            message => message.role === "system" && message.content.includes("You are a helpful assistant that creates quizzes")
+        );
+        if (!systemMessageExists) {
+            console.log(`Adding system message to existing conversation for reader ${readerId}`);
+            req.session.conversations[readerId].unshift({ role: "system", content: initialPrompt });
+        }
+    }
+    const conversationPre = req.session.conversations[readerId];
+    console.log('Current conversation:', conversationPre);
+    // Add the user's message to the conversation for the active reader
+    req.session.conversations[readerId].push({ role: "user", content: req.body.message });
+
+    const conversation = req.session.conversations[readerId];
+
+    console.log('Current conversation:', conversation);  // Log the conversation for debugging
+
+    const tools = [
+        {
+            type: "function",
+            function: {
+                name: "addPoints",
+                description: "Adds points to a reader",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        readerId: { type: "number", description: "The ID of the reader" },
+                        pointsToAdd: { type: "number", description: "Points to add" },
+                    },
+                    required: ["readerId", "pointsToAdd"]
+                }
+            }
+        }
+    ];
+    console.log(conversation);
+    try {
+        // Send message to OpenAI API with conversation history
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: conversation,  // Include conversation history
+            tools: tools
+        });
+
+        const toolCall = response.choices[0].message.tool_calls?.[0];
+
+        if (toolCall) {
+            const { name, arguments: functionArgs } = toolCall.function;
+            const parsedArgs = JSON.parse(functionArgs);
+
+            if (name === "addPoints") {
+                const { pointsToAdd } = parsedArgs;
+                addPoints(readerId, pointsToAdd);  // Call your addPoints function
+                const assistantMessage = `Added ${pointsToAdd} points to reader ${readerId}`;
+                
+                // Add assistant's response to the conversation history
+                req.session.conversations[readerId].push({ role: "assistant", content: assistantMessage });
+                res.send(assistantMessage);
+            }
+        } else {
+            const assistantResponse = response.choices[0].message.content;
+
+            // Add assistant's response to the conversation history
+            req.session.conversations[readerId].push({ role: "assistant", content: assistantResponse });
+            res.send(assistantResponse);
+        }
+
+    } catch (error) {
+        console.error("Error with OpenAI chatbot:", error.message);
+        res.status(500).send("Error interacting with chatbot.");
+    }
+});
+app.post('/clear-conversation', (req, res) => {
+    const readerId = req.session.activeReaderId;
+
+    if (!readerId) {
+        return res.status(400).send("No active reader selected.");
+    }
+
+    if (req.session.conversations && req.session.conversations[readerId]) {
+        req.session.conversations[readerId] = [];  // Clear the conversation history for the active reader
+        console.log(`Conversation cleared for reader ${readerId}.`);
+        return res.send("Conversation history cleared for testing.");
+    } else {
+        return res.status(400).send("No conversation to clear for this reader.");
+    }
+});
+
+
+
+
+
 // Update the recordChapters function to use OpenAI API
 async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
     const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
@@ -1131,8 +1253,8 @@ app.get('/chapter/:book/:chapter', async (req, res) => {
             params: {
                 q: `${book} ${chapter}`,  // e.g., 'John 1'
                 'include-footnotes': false,
-                'include-headings': false,
-                'include-short-copyright': false
+                'include-headings': true,
+                'include-short-copyright': true
             },
             headers: {
                 Authorization: `Token ${process.env.ESV_API_KEY}`
@@ -1195,6 +1317,7 @@ app.get('/manage', (req, res) => {
     const activeReader = req.session.activeReaderId || null;
     const userId = req.session.userId;
     const userRole = req.session.role;
+    
 
     // Fetch the logged-in user's name and family_id
     const userSql = `SELECT name, family_id FROM users WHERE id = ?`;
@@ -1803,7 +1926,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 3000;
+const PORT = 80;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
