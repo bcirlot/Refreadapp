@@ -936,7 +936,7 @@ app.post('/chatbot', async (req, res) => {
     }
 
     const initialPrompt = `You are a helpful assistant that creates quizzes for the user, consisting of 5 multiple-choice Bible-based questions. Ask only one question at a time, wait for the user's response before asking the next question, and provide hints or Bible references if the user struggles. Track the user's score, and if they answer at least 4 questions correctly, call the addPoints function to reward them 5 points. Gradually increase the difficulty of quizzes as the user progresses. The active reader name is ${activeReaderName} with id ${readerId}.`;
-    console.log('the initial prompt:', initialPrompt)
+    // console.log('the initial prompt:', initialPrompt)
     // Ensure system message is always present in the conversation
     if (!req.session.conversations[readerId]) {
         console.log(`Initializing conversation for reader ${readerId}`);
@@ -954,13 +954,13 @@ app.post('/chatbot', async (req, res) => {
         }
     }
     const conversationPre = req.session.conversations[readerId];
-    console.log('Current conversation:', conversationPre);
+    // console.log('Current conversation:', conversationPre);
     // Add the user's message to the conversation for the active reader
     req.session.conversations[readerId].push({ role: "user", content: req.body.message });
 
     const conversation = req.session.conversations[readerId];
 
-    console.log('Current conversation:', conversation);  // Log the conversation for debugging
+    // console.log('Current conversation:', conversation);  // Log the conversation for debugging
 
     const tools = [
         {
@@ -979,11 +979,11 @@ app.post('/chatbot', async (req, res) => {
             }
         }
     ];
-    console.log(conversation);
+    // console.log(conversation);
     try {
         // Send message to OpenAI API with conversation history
         const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: "gpt-4o-mini",
             messages: conversation,  // Include conversation history
             tools: tools
         });
