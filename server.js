@@ -901,7 +901,7 @@ app.post('/record', (req, res) => {
 });
 // The function to generate a thank you message
 async function generateThankYouMessage(readerName, pointsToAdd) {
-    const prompt = `You will write as though you are Martin Luther the Reformer. You have a very high view of the Bible. You have a very low view of humanity. Write a two sentence thank-you message for a user named ${readerName} who has just reported chapters (which is a good thing) and earned ${pointsToAdd} points. Use sarcasm and be very pessimistic, though grateful that at least the user did something fruitful with their time. Keep the message short and do not include a formal closing or state your name. Make sure all your words fit within the time frame and religoius beliefs of early protestantism, salvation by grace alone through faith alone and in Christ alone, all to the glory of God alone.`;
+    const prompt = `You will write as though you are Martin Luther the Reformer. You have a very high view of the Bible and of God's redeeming work in Christ through the Gospel. You have a very low view of humanity. Write a one sentence congratualations message for a user named ${readerName} who has just reported chapters (which is a good thing) and earned ${pointsToAdd} points. Use sarcasm and be very pessimistic, though grateful that at least the user did something fruitful with their time. Do not include a formal closing or state your name. Make sure all your words fit within the time frame and religoius beliefs of early protestantism, salvation by grace alone through faith alone and in Christ alone, all to the glory of God alone.`;
 
     try {
         const response = await openai.chat.completions.create({
