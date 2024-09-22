@@ -1681,7 +1681,7 @@ app.post('/admin/clear-tables', (req, res) => {
     const deleteUserChaptersSql = `DELETE FROM user_chapters`;
     const resetUserChaptersSeqSql = `DELETE FROM sqlite_sequence WHERE name='user_chapters'`;
 
-    // Execute the SQL queries
+    // First, clear the userpoints and userchapters tables
     db.run(deleteUserPointsSql, (err) => {
         if (err) {
             console.error('Error deleting userpoints:', err.message);
@@ -1699,13 +1699,35 @@ app.post('/admin/clear-tables', (req, res) => {
                     return res.status(500).send('Error resetting userchapters sequence.');
                 }
 
-                // After all operations are successful, redirect back to the admin page
-                req.flash('success', 'User points and chapters cleared successfully!');
-                res.redirect('/admin');
+                // After clearing, insert a row into userpoints for each reader
+                const getReadersSql = `SELECT id FROM readers`;  // Get all reader IDs
+                db.all(getReadersSql, [], (err, readers) => {
+                    if (err) {
+                        console.error('Error retrieving readers:', err.message);
+                        return res.status(500).send('Error retrieving readers.');
+                    }
+
+                    // Insert 1 point for each reader in the userpoints table
+                    const insertPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, 1)`;
+                    readers.forEach(reader => {
+                        db.run(insertPointsSql, [reader.id], (err) => {
+                            if (err) {
+                                console.error(`Error inserting points for reader ${reader.id}:`, err.message);
+                            } else {
+                                console.log(`Inserted 1 point for reader ${reader.id}`);
+                            }
+                        });
+                    });
+
+                    // After all operations are successful, redirect back to the admin page
+                    req.flash('success', 'User points and chapters cleared and reset successfully!');
+                    res.redirect('/admin');
+                });
             });
         });
     });
 });
+
 
 app.get('/export-chapters-csv', (req, res) => {
     if (req.session.role !== 'admin') {
