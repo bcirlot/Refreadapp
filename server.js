@@ -18,32 +18,15 @@ import flash from 'connect-flash';
 import expressLayouts from 'express-ejs-layouts';
 import OpenAI from "openai";
 import { addReadingPlan } from './utils.js';
-
-// SQLite3 needs to be verbose
 sqlite3.verbose();
-
-// Set up SQLite store for session
 const SQLiteStore = connectSqlite3(session);
-
-// Configure dotenv to load environment variables
 dotenv.config();
-
-// Initialize OpenAI API
-// Configure OpenAI API with key
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-
-// Initialize Express app
 const app = express();
-
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-
-// Recreate __dirname in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-
 
 //app.* stuff
 app.use(express.urlencoded({ extended: false }));
@@ -148,7 +131,6 @@ app.use((req, res, next) => {
         next();
     }
 });
-
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -158,8 +140,6 @@ app.use(session({
     saveUninitialized: true
 }));
 app.use(flash());
-
-// Make flash messages available to all views
 app.use((req, res, next) => {
     res.locals.successMessage = req.flash('success');
     res.locals.errorMessage = req.flash('error');
@@ -172,7 +152,6 @@ function ensureAdmin(req, res, next) {
         res.status(403).send('Forbidden: You do not have permission to access this page');
     }
 }
-// Connect to the SQLite database
 let db = new sqlite3.Database('../mydatabase.db', (err) => {
     if (err) {
         console.error(err.message);
@@ -180,8 +159,6 @@ let db = new sqlite3.Database('../mydatabase.db', (err) => {
     }
     console.log('Connected to the SQLite database.');
 });
-
-// Mail stuff for password change
 const transporter = nodemailer.createTransport({
     host: 'smtp.zoho.com',
     port: 465, 
@@ -565,10 +542,6 @@ app.post('/create-custom-plan', (req, res) => {
         });
     });
 });
-
-
-
-
 app.post('/set-active-reader', (req, res) => {
     const readerId = req.body.readerId;
 
@@ -707,7 +680,6 @@ app.get('/referrals', (req, res) => {
         });
     });
 });
-
 app.get('/forgot-password', (req, res) => {
     res.render('forgot-password', { error: null });
 });
@@ -815,9 +787,6 @@ app.post('/leave-family', (req, res) => {
         res.redirect('/manage');
     });
 });
-
-
-
 //Main Page
 app.get('/', (req, res) => {
     const isLoggedIn = req.session.userId !== undefined;
@@ -1077,7 +1046,6 @@ async function generateThankYouMessage(readerName, pointsToAdd) {
         return "Thank you for reporting chapters!"; // Fallback message
     }
 }
-
 app.post('/chatbot', async (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');  // Redirect to login if not logged in
@@ -1192,11 +1160,6 @@ app.post('/clear-conversation', (req, res) => {
         return res.status(400).send("No conversation to clear for this reader.");
     }
 });
-
-
-
-
-
 // Update the recordChapters function to use OpenAI API
 async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
     const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
@@ -1285,8 +1248,6 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
         });
     }
 }
-
-
 function checkForCompletion(readerId, chapterId, callback) {
     const totalBibleChapters = 1189; // Total chapters in the Bible
 
@@ -1317,7 +1278,6 @@ function checkForCompletion(readerId, chapterId, callback) {
         callback(timesReadArray[chapterId - 1] === minReads);
     });
 }
-
 app.get('/record-by-book', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1386,7 +1346,6 @@ app.post('/record-by-book', (req, res) => {
         });
     });
 });
-// Route to fetch a chapter from the ESV API
 app.get('/chapter/:book/:chapter', async (req, res) => {
     const book = req.params.book;
     const chapter = req.params.chapter;
@@ -1409,24 +1368,36 @@ app.get('/chapter/:book/:chapter', async (req, res) => {
         
         const chapterId = row.id;  // Get the chapterId from the database
 
-        // Make a request to the ESV API
+        // Make a request to the ESV API for the passage HTML
         const esvResponse = await axios.get('https://api.esv.org/v3/passage/html/', {
             params: {
                 q: `${book} ${chapter}`,  // e.g., 'John 1'
                 'include-footnotes': false,
                 'include-headings': true,
-                'include-short-copyright': true
+                'include-short-copyright': true,
+                'include-audio-link': false
             },
             headers: {
                 Authorization: `Token ${process.env.ESV_API_KEY}`
             }
         });
 
-        // Extract the passage HTML
+        // Make a request to the ESV API for the audio passage
+        const audioResponse = await axios.get('https://api.esv.org/v3/passage/audio/', {
+            params: {
+                q: `${book} ${chapter}`
+            },
+            headers: {
+                Authorization: `Token ${process.env.ESV_API_KEY}`
+            }
+        });
+
+        // Extract the passage HTML and audio URL
         const passageHTML = esvResponse.data.passages[0];
+        const audioUrl = audioResponse.request.res.responseUrl;  // Get the final redirect URL
 
         // Render the HTML or pass it to the frontend
-        res.render('chapter', { passageHTML, book, chapter, chapterId });
+        res.render('chapter', { passageHTML, book, chapter, chapterId, audioUrl });
 
     } catch (error) {
         if (error.message === 'Chapter not found') {
@@ -1436,12 +1407,12 @@ app.get('/chapter/:book/:chapter', async (req, res) => {
         res.status(500).send('Error processing the request.');
     }
 });
-
 app.post('/mark-chapter-read', (req, res) => {
     const userId = req.session.userId;
     const readerId = req.session.activeReaderId;
     const bookName = req.body.bookName;
-    const chapterNumber = parseInt(req.body.chapter); // Use chapter number, not chapterId
+    const chapterNumber = parseInt(req.body.chapter);
+    const playbackSpeed = req.body.speed || 1.0; 
 
     if (!userId || !readerId || !bookName || !chapterNumber) {
         return res.status(400).send('Missing required data.');
@@ -1459,17 +1430,53 @@ app.post('/mark-chapter-read', (req, res) => {
             return res.status(404).send('Chapter not found.');
         }
 
-        const chapterId = row.id; // Correct chapterId fetched from the database
+        const chapterId = row.id;
 
-        // Now use the fetched chapterId in the recordChapters function
-        recordChapters(userId, readerId, [chapterNumber], bookName, res, req, '/reader-profile', () => {
-            console.log('Chapter marked as read and points updated.');
+        // Fetch the next chapter in the plan
+        const planSql = `
+            SELECT rp.chapter_ids
+            FROM reading_plans rp
+            JOIN reader_plans rpl ON rpl.plan_id = rp.id
+            WHERE rpl.reader_id = ?
+        `;
+
+        db.get(planSql, [readerId], (err, plan) => {
+            if (err || !plan) {
+                console.error('Error retrieving plan:', err ? err.message : 'No plan found');
+                return res.redirect('/reader-profile');
+            }
+
+            const chapterIds = JSON.parse(plan.chapter_ids);
+            const currentChapterIndex = chapterIds.indexOf(chapterId);
+
+            let redirectRoute = '/reader-profile'; // Default redirect
+            if (currentChapterIndex < chapterIds.length - 1) {
+                const nextChapterId = chapterIds[currentChapterIndex + 1];
+
+                const nextChapterSql = `SELECT book, chapter FROM chaptersmaster WHERE id = ?`;
+                db.get(nextChapterSql, [nextChapterId], (err, nextChapter) => {
+                    if (err || !nextChapter) {
+                        console.error('Error retrieving next chapter:', err.message);
+                    } else {
+                        
+                        // Set the redirect to the next chapter
+                        redirectRoute = `/chapter/${nextChapter.book}/${nextChapter.chapter}?autoplay=true&speed=${playbackSpeed}`;
+                    }
+
+                    // Call the recordChapters function with the redirect route
+                    recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, () => {
+                        console.log('Chapter marked as read and points updated.');
+                    });
+                });
+            } else {
+                // If no more chapters, mark the chapter and redirect to the profile
+                recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, () => {
+                    console.log('Chapter marked as read and points updated.');
+                });
+            }
         });
     });
 });
-
-
-
 app.get('/manage', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
@@ -1792,46 +1799,37 @@ app.post('/admin/levels/update', (req, res) => {
         res.redirect('/admin-levels'); // Redirect back to the levels page after the update
     });
 });
-
-
-
-//Static Pages
 app.get('/about', (req, res) => {
     res.render('about');
 });
+// app.get('/unread-chapters', (req, res) => {
+//     const unreadChaptersSql = `
+//         SELECT chaptersmaster.book, chaptersmaster.chapter
+//         FROM chaptersmaster
+//         LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+//         WHERE user_chapters.chapter_id IS NULL
+//         ORDER BY chaptersmaster.id 
+//     `;
 
-//Not in use at the moment
-app.get('/unread-chapters', (req, res) => {
-    const unreadChaptersSql = `
-        SELECT chaptersmaster.book, chaptersmaster.chapter
-        FROM chaptersmaster
-        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
-        WHERE user_chapters.chapter_id IS NULL
-        ORDER BY chaptersmaster.id 
-    `;
+//     db.all(unreadChaptersSql, [], (err, unreadRows) => {
+//         if (err) {
+//             console.error('Error fetching unread chapters:', err.message);
+//             return res.status(500).send('Error retrieving unread chapters');
+//         }
 
-    db.all(unreadChaptersSql, [], (err, unreadRows) => {
-        if (err) {
-            console.error('Error fetching unread chapters:', err.message);
-            return res.status(500).send('Error retrieving unread chapters');
-        }
+//         // Group unread chapters by book
+//         const unreadChaptersByBook = {};
+//         unreadRows.forEach(row => {
+//             const book = row.book.trim();
+//             if (!unreadChaptersByBook[book]) {
+//                 unreadChaptersByBook[book] = [];
+//             }
+//             unreadChaptersByBook[book].push(row.chapter);
+//         });
 
-        // Group unread chapters by book
-        const unreadChaptersByBook = {};
-        unreadRows.forEach(row => {
-            const book = row.book.trim();
-            if (!unreadChaptersByBook[book]) {
-                unreadChaptersByBook[book] = [];
-            }
-            unreadChaptersByBook[book].push(row.chapter);
-        });
-
-        res.render('unread-chapters', { unreadChaptersByBook });
-    });
-});
-
-//Administration stuff
-// POST route to clear userpoints and userchapters
+//         res.render('unread-chapters', { unreadChaptersByBook });
+//     });
+// });
 app.post('/admin/clear-tables', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).send('Access denied');
@@ -1888,8 +1886,6 @@ app.post('/admin/clear-tables', (req, res) => {
         });
     });
 });
-
-
 app.get('/export-chapters-csv', (req, res) => {
     if (req.session.role !== 'admin') {
         return res.status(403).send('Unauthorized');
@@ -1987,8 +1983,6 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
             });
         });
 });
-
-//Gamification Components
 function addPoints(readerId, pointsToAdd, callback) {
     const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
 
@@ -2026,7 +2020,6 @@ function addPoints(readerId, pointsToAdd, callback) {
         }
     });
 }
-
 function updateReaderLevel(readerId, totalPoints, callback) {
     const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
 
@@ -2061,7 +2054,6 @@ function updateReaderLevel(readerId, totalPoints, callback) {
         }
     });
 }
-
 function generateReferralToken() {
     return crypto.randomBytes(16).toString('hex'); // Creates a unique token
 }
