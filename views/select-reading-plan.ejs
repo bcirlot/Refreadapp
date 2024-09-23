@@ -1,0 +1,17 @@
+<h2>Select a Reading Plan</h2>
+
+<form action="/update-reading-plan" method="POST">
+    <div class="form-group">
+        <label for="plan">Choose a Reading Plan:</label>
+        <select id="plan" name="planId" class="form-control">
+            <option value="">No Plan (Whole Bible)</option> <!-- Option for deselecting -->
+            <% plans.forEach(function(plan) { %>
+                <option value="<%= plan.id %>" <%= plan.id === currentPlanId ? 'selected' : '' %>>
+                    <%= plan.name %>
+                </option>
+            <% }) %>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Update Plan</button>
+</form>
+

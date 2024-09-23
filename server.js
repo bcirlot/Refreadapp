@@ -17,6 +17,7 @@ import { execSync } from 'child_process';
 import flash from 'connect-flash';
 import expressLayouts from 'express-ejs-layouts';
 import OpenAI from "openai";
+import { addReadingPlan } from './utils.js';
 
 // SQLite3 needs to be verbose
 sqlite3.verbose();
@@ -328,86 +329,246 @@ app.get('/reader-profile', (req, res) => {
     });
 });
 app.get('/reader-progress', (req, res) => {
-    const activeReaderId = req.session.activeReaderId; // Assuming active reader ID is stored in the session
+    const activeReaderId = req.session.activeReaderId; // Active reader ID from session
     const totalBibleChapters = 1189; // Total chapters in the Bible
 
-    // SQL query to get the number of times each chapter has been read by the active reader
-    const chapterReadsSql = `
-        SELECT chapter_id, COUNT(chapter_id) AS times_read
-        FROM user_chapters
-        WHERE reader_id = ?
-        GROUP BY chapter_id
+    // SQL query to get the selected reading plan for the active reader
+    const readingPlanSql = `
+        SELECT rp.chapter_ids
+        FROM reading_plans rp
+        JOIN reader_plans rpl ON rp.id = rpl.plan_id
+        WHERE rpl.reader_id = ?
     `;
 
-    db.all(chapterReadsSql, [activeReaderId], (err, rows) => {
+    db.get(readingPlanSql, [activeReaderId], (err, plan) => {
         if (err) {
-            console.error('Error fetching reader-specific chapters:', err.message);
-            return res.status(500).send('Error retrieving Bible progress');
+            console.error('Error fetching the reading plan:', err.message);
+            return res.status(500).send('Error retrieving reading plan');
         }
 
-        // Initialize an array to store the number of times each chapter has been read
-        let timesReadArray = new Array(totalBibleChapters).fill(0);
+        // If a plan exists, parse the chapter IDs from JSON; otherwise, use the full Bible
+        let chapterFilter = null;
+        if (plan && plan.chapter_ids) {
+            chapterFilter = JSON.parse(plan.chapter_ids); // Parse the JSON array of chapter IDs
+        }
 
-        // Populate the timesReadArray with the number of reads for each chapter
-        rows.forEach(row => {
-            timesReadArray[row.chapter_id - 1] = row.times_read;  // Subtract 1 because array index starts from 0
-        });
-
-        // Find the minimum number of times any chapter has been read (i.e., full Bible completions for this reader)
-        const minReads = Math.min(...timesReadArray);
-
-        // Calculate how many chapters have been read toward the next full Bible completion for this reader
-        const remainingChaptersForNextCompletion = timesReadArray.reduce((sum, reads) => sum + (reads > minReads ? 1 : 0), 0);
-
-        // Fetch chapters for the current cycle, filtering by active reader and taking into account minReads
-        const allChaptersSql = `
-            SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
-                   CASE WHEN COUNT(user_chapters.chapter_id) > ? THEN 1 ELSE 0 END as is_read
-            FROM chaptersmaster
-            LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
-                                   AND user_chapters.reader_id = ?  -- Filter by the active reader
-            GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
-            ORDER BY chaptersmaster.id  -- Maintain Bible order
+        // SQL query to get the number of times each chapter has been read by the active reader
+        const chapterReadsSql = `
+            SELECT chapter_id, COUNT(chapter_id) AS times_read
+            FROM user_chapters
+            WHERE reader_id = ?
+            GROUP BY chapter_id
         `;
 
-        db.all(allChaptersSql, [minReads, activeReaderId], (err, chapters) => {
+        db.all(chapterReadsSql, [activeReaderId], (err, rows) => {
             if (err) {
-                console.error('Error fetching Bible chapters:', err.message);
+                console.error('Error fetching reader-specific chapters:', err.message);
                 return res.status(500).send('Error retrieving Bible progress');
             }
 
-            // Group chapters by book
-            const chaptersByBook = {};
-            chapters.forEach(row => {
-                const book = row.book.trim();
-                if (!chaptersByBook[book]) {
-                    chaptersByBook[book] = [];
-                }
-                chaptersByBook[book].push({
-                    chapter: row.chapter,
-                    isRead: row.is_read
-                });
+            // Initialize an array to store the number of times each chapter has been read
+            let timesReadArray = new Array(totalBibleChapters).fill(0);
+
+            // Populate the timesReadArray with the number of reads for each chapter
+            rows.forEach(row => {
+                timesReadArray[row.chapter_id - 1] = row.times_read;  // Subtract 1 because array index starts from 0
             });
 
-            // Fetch the active reader's name
-            const readerNameSql = `SELECT reader_name FROM readers WHERE id = ?`;
-            db.get(readerNameSql, [activeReaderId], (err, reader) => {
+            // Find the minimum number of times any chapter has been read (i.e., full Bible completions for this reader)
+            const minReads = Math.min(...timesReadArray);
+
+            // Fetch chapters for the current cycle, filtering by active reader and taking into account minReads
+            let allChaptersSql = `
+                SELECT chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter,
+                       CASE WHEN COUNT(user_chapters.chapter_id) > ? THEN 1 ELSE 0 END as is_read
+                FROM chaptersmaster
+                LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+                                       AND user_chapters.reader_id = ?  -- Filter by the active reader
+            `;
+
+            // If a reading plan exists, only fetch chapters within the reading plan's chapter IDs
+            if (chapterFilter) {
+                const chapterIdList = chapterFilter.join(",");  // Convert array of chapter IDs to a comma-separated string
+                allChaptersSql += ` WHERE chaptersmaster.id IN (${chapterIdList}) `;
+            }
+
+            allChaptersSql += `
+                GROUP BY chaptersmaster.id, chaptersmaster.book, chaptersmaster.chapter
+                ORDER BY chaptersmaster.id  -- Maintain Bible order
+            `;
+
+            db.all(allChaptersSql, [minReads, activeReaderId], (err, chapters) => {
                 if (err) {
-                    console.error('Error retrieving reader name:', err.message);
-                    return res.status(500).send('Error retrieving reader name');
+                    console.error('Error fetching Bible chapters:', err.message);
+                    return res.status(500).send('Error retrieving Bible progress');
                 }
 
-                // Render the reader progress view
-                res.render('reader-progress', { chaptersByBook, readerName: reader.reader_name }, (err, html) => {
-                    if (err) {
-                        return res.status(500).send('Error rendering progress');
+                // Group chapters by book
+                const chaptersByBook = {};
+                chapters.forEach(row => {
+                    const book = row.book.trim();
+                    if (!chaptersByBook[book]) {
+                        chaptersByBook[book] = [];
                     }
-                    res.send(html); // Return the HTML fragment for the modal
+                    chaptersByBook[book].push({
+                        chapter: row.chapter,
+                        isRead: row.is_read
+                    });
+                });
+
+                // Fetch the active reader's name
+                const readerNameSql = `SELECT reader_name FROM readers WHERE id = ?`;
+                db.get(readerNameSql, [activeReaderId], (err, reader) => {
+                    if (err) {
+                        console.error('Error retrieving reader name:', err.message);
+                        return res.status(500).send('Error retrieving reader name');
+                    }
+
+                    // Render the reader progress view
+                    res.render('reader-progress', { chaptersByBook, readerName: reader.reader_name }, (err, html) => {
+                        if (err) {
+                            return res.status(500).send('Error rendering progress');
+                        }
+                        res.send(html); // Return the HTML fragment for the modal
+                    });
                 });
             });
         });
     });
 });
+app.get('/select-reading-plan', (req, res) => {
+    const activeReaderId = req.session.activeReaderId; // Assuming active reader ID is in the session
+
+    // SQL query to fetch all available reading plans
+    const availablePlansSql = `SELECT id, name FROM reading_plans`;
+
+    db.all(availablePlansSql, [], (err, plans) => {
+        if (err) {
+            console.error('Error fetching reading plans:', err.message);
+            return res.status(500).send('Error retrieving reading plans.');
+        }
+
+        // Fetch the current plan for the reader
+        const currentPlanSql = `SELECT plan_id FROM reader_plans WHERE reader_id = ?`;
+        db.get(currentPlanSql, [activeReaderId], (err, currentPlan) => {
+            if (err) {
+                console.error('Error fetching current reading plan:', err.message);
+                return res.status(500).send('Error retrieving current plan.');
+            }
+
+            // Render the selection page
+            res.render('select-reading-plan', {
+                plans,
+                currentPlanId: currentPlan ? currentPlan.plan_id : null
+            });
+        });
+    });
+});
+app.post('/update-reading-plan', (req, res) => {
+    const activeReaderId = req.session.activeReaderId;
+    const { planId } = req.body;
+
+    if (!activeReaderId) {
+        return res.status(400).send('Invalid request. Missing reader information.');
+    }
+
+    if (!planId) {
+        // If no plan is selected (revert to whole Bible), delete the current plan
+        const deletePlanSql = `DELETE FROM reader_plans WHERE reader_id = ?`;
+        db.run(deletePlanSql, [activeReaderId], (err) => {
+            if (err) {
+                console.error('Error deleting reading plan:', err.message);
+                return res.status(500).send('Error resetting reading plan.');
+            }
+            req.flash('success', 'Reading plan reset to whole Bible!');
+            return res.redirect('/reader-progress');
+        });
+    } else {
+        // If a plan is selected, update or insert it
+        const checkPlanSql = `SELECT * FROM reader_plans WHERE reader_id = ?`;
+
+        db.get(checkPlanSql, [activeReaderId], (err, row) => {
+            if (err) {
+                console.error('Error checking existing plan:', err.message);
+                return res.status(500).send('Error updating reading plan.');
+            }
+
+            if (row) {
+                // Update the existing plan
+                const updatePlanSql = `UPDATE reader_plans SET plan_id = ? WHERE reader_id = ?`;
+                db.run(updatePlanSql, [planId, activeReaderId], (err) => {
+                    if (err) {
+                        console.error('Error updating plan:', err.message);
+                        return res.status(500).send('Error updating reading plan.');
+                    }
+                    req.flash('success', 'Reading plan updated successfully!');
+                    return res.redirect('/reader-progress');
+                });
+            } else {
+                // Insert a new plan if no plan exists
+                const insertPlanSql = `INSERT INTO reader_plans (reader_id, plan_id) VALUES (?, ?)`;
+                db.run(insertPlanSql, [activeReaderId, planId], (err) => {
+                    if (err) {
+                        console.error('Error inserting new plan:', err.message);
+                        return res.status(500).send('Error updating reading plan.');
+                    }
+                    req.flash('success', 'Reading plan set successfully!');
+                    return res.redirect('/reader-progress');
+                });
+            }
+        });
+    }
+});
+app.get('/create-custom-plan', (req, res) => {
+    const activeReaderId = req.session.activeReaderId;
+
+    // Fetch all chapters to display for selection
+    const fetchChaptersSql = `SELECT id, book, chapter FROM chaptersmaster ORDER BY id`;
+
+    db.all(fetchChaptersSql, [], (err, chapters) => {
+        if (err) {
+            console.error('Error fetching chapters:', err.message);
+            return res.status(500).send('Error fetching chapters.');
+        }
+
+        // Render the chapter selection form
+        res.render('create-custom-plan', { chapters });
+    });
+});
+app.post('/create-custom-plan', (req, res) => {
+    const { planName, chapters } = req.body;
+    const activeReaderId = req.session.activeReaderId;
+
+    if (!planName || !chapters) {
+        return res.status(400).send('Plan name and chapters are required.');
+    }
+
+    // Convert chapters to an array if only one chapter is selected
+    const selectedChapters = Array.isArray(chapters) ? chapters : [chapters];
+
+    // Insert the new custom plan
+    addReadingPlan(planName, selectedChapters, (err, planId) => {
+        if (err) {
+            console.error('Error creating custom plan:', err.message);
+            return res.status(500).send('Error creating custom plan.');
+        }
+
+        // Assign the new plan to the user
+        const insertReaderPlanSql = `INSERT INTO reader_plans (reader_id, plan_id) VALUES (?, ?)`;
+        db.run(insertReaderPlanSql, [activeReaderId, planId], (err) => {
+            if (err) {
+                console.error('Error assigning plan to reader:', err.message);
+                return res.status(500).send('Error assigning plan.');
+            }
+            req.flash('success', 'Custom reading plan created successfully!');
+            res.redirect('/reader-progress');
+        });
+    });
+});
+
+
+
+
 app.post('/set-active-reader', (req, res) => {
     const readerId = req.body.readerId;
 
@@ -1948,7 +2109,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 80;
+const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
