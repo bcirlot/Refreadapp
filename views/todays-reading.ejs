@@ -1,0 +1,21 @@
+<h1><%= activeReaderName %>'s Reading for Today</h1>
+
+<span><%= statusMessage %></span>
+<br>
+<div class="container mt-4">
+    <% if (chapters && chapters.length > 0) { %>
+        <% chapters.forEach(function(chapter) { %>
+            <div class="chapter-wrapper mb-3">
+                <a href="/chapter/<%= chapter.book %>/<%= chapter.chapter %>" class="btn btn-primary w-100">
+                    Read <%= chapter.book %> Chapter <%= chapter.chapter %>
+                </a>
+            </div>
+        <% }); %>
+    <% } else { %>
+        <p>No chapters to read today.</p>
+    <% } %>
+
+    <div class="mt-4"></div>
+        <a href="/reader-profile" class="btn btn-secondary w-100">Back to Profile</a>
+    </div>
+</div>

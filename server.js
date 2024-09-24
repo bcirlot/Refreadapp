@@ -520,8 +520,8 @@ app.post('/create-custom-plan', (req, res) => {
         return res.status(400).send('Plan name and chapters are required.');
     }
 
-    // Convert chapters to an array if only one chapter is selected
-    const selectedChapters = Array.isArray(chapters) ? chapters : [chapters];
+    // Convert chapters to integers and ensure it's an array
+    const selectedChapters = Array.isArray(chapters) ? chapters.map(Number) : [parseInt(chapters)];
 
     // Insert the new custom plan
     addReadingPlan(planName, selectedChapters, (err, planId) => {
@@ -787,6 +787,90 @@ app.post('/leave-family', (req, res) => {
         res.redirect('/manage');
     });
 });
+app.get('/todays-reading', (req, res) => {
+    const readerId = req.session.activeReaderId;
+
+    // Start and end of the reading challenge
+    const challengeStartDate = new Date('2024-09-29');
+    const challengeEndDate = new Date('2024-10-27');
+    const today = new Date();
+    let statusMessage = '';
+
+    // Check if today is before the challenge start date
+    if (today < challengeStartDate) {
+        const readStarts = Math.ceil((challengeStartDate - today) / (1000 * 60 * 60 * 24));
+        statusMessage = `The reading challenge starts in ${readStarts} days.`;
+    } else if (today > challengeEndDate) {
+        statusMessage = 'The reading challenge is over.';
+    }
+
+    // Calculate the number of days remaining in the challenge
+    const daysRemaining = Math.ceil((challengeEndDate - today) / (1000 * 60 * 60 * 24));
+
+    console.log(`Days remaining in the challenge: ${daysRemaining}`);
+
+    if (daysRemaining <= 0) {
+        return res.status(400).send('The reading challenge period is over.');
+    }
+
+    // Fetch reader's plan
+    const planSql = `
+        SELECT rp.chapter_ids
+        FROM reading_plans rp
+        JOIN reader_plans rpl ON rp.id = rpl.plan_id
+        WHERE rpl.reader_id = ?
+    `;
+
+    console.log(`Fetching plan for readerId: ${readerId}`);
+
+    db.get(planSql, [readerId], (err, plan) => {
+        if (err) {
+            console.error('Error fetching reading plan:', err.message);
+            return res.status(500).send('Error fetching reading plan.');
+        }
+
+        if (!plan) {
+            console.log('No reading plan found for this reader.');
+            statusMessage = 'You have not selected a reading plan.';
+            const chapters = '';
+            return res.render('todays-reading', { chapters, readerName: req.session.activeReaderName, statusMessage });
+
+        }
+
+        console.log(`Reading plan found: ${JSON.stringify(plan)}`);
+
+        const chapterIds = JSON.parse(plan.chapter_ids);
+        const totalChapters = chapterIds.length;
+        const challengeDays = Math.ceil((challengeEndDate - challengeStartDate) / (1000 * 60 * 60 * 24));
+        const chaptersPerDay = Math.ceil(totalChapters / challengeDays);
+
+        // Calculate today's chapters
+        const todayIndex = Math.max(0, totalChapters - (daysRemaining * chaptersPerDay));
+        console.log(`TodayIndex: ${todayIndex}, Chapters per day: ${chaptersPerDay}`);
+
+        const todaysChapters = chapterIds.slice(todayIndex, todayIndex + chaptersPerDay);
+        console.log(`Today's chapters: ${JSON.stringify(todaysChapters)}`);
+
+        // Fetch chapter info for today's chapters
+        const chaptersSql = `SELECT book, chapter FROM chaptersmaster WHERE id IN (${todaysChapters.join(',')})`;
+
+        console.log(`Executing SQL: ${chaptersSql}`);
+
+        db.all(chaptersSql, [], (err, chapters) => {
+            if (err) {
+                console.error('Error fetching today\'s chapters:', err.message);
+                return res.status(500).send('Error fetching today\'s chapters.');
+            }
+
+            console.log(`Fetched chapters: ${JSON.stringify(chapters)}`);
+
+            res.render('todays-reading', { chapters, readerName: req.session.activeReaderName, statusMessage });
+        });
+    });
+});
+
+
+
 //Main Page
 app.get('/', (req, res) => {
     const isLoggedIn = req.session.userId !== undefined;
