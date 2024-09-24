@@ -34,7 +34,7 @@ app.use(express.json());
 app.use(expressLayouts);
 app.set('layout', 'layout');
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.sqlite' }),
+    store: new SQLiteStore({ db: '../sessions.sqlite' }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -2185,7 +2185,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
     });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
