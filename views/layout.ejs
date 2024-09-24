@@ -106,8 +106,28 @@
     height: 100px;
 }
 table .smallerSize {
-    padding: 0;
+    padding: .luther-message {
+    background-color: #f8f4e1; /* Parchment-like background */
+    border-left: 5px solid #8B0000; /* Dark red border to signify a historic figure */
+    font-family: 'IM Fell English SC', serif; /* Example Gothic font */
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.2);
+    max-width: 500px; /* Adjust width as needed */
+    margin: 20px auto;
 }
+
+.luther-message .bi-chat-quote {
+    font-size: 24px;
+    vertical-align: middle;
+    margin-right: 10px;
+}
+
+.luther-message small {
+    color: #555;
+    font-size: 0.85rem;
+}
+
         
     </style>
     
@@ -183,19 +203,14 @@ table .smallerSize {
     
    
         <!-- Conditionally display the success message if it exists -->
-        <% if (typeof successMessage !== 'undefined' && successMessage.length > 0) { %>
-            <div class="flash-message">
-                <span><%= successMessage %></span>
-                <button class="flash-close-btn">&times;</button>
-            </div>
-        <% } %>
-    
-        <!-- Conditionally display the error message if it exists -->
-        <% if (typeof errorMessage !== 'undefined' && errorMessage.length > 0) { %>
-            <div class="alert alert-danger" role="alert">
-                <%= errorMessage %>
-            </div>
-        <% } %>
+       <% if (typeof successMessage !== 'undefined' && successMessage.length > 0) { %>
+    <div class="luther-message flash-message">
+        <i class="bi bi-chat-quote"></i> <!-- Optional Luther Icon -->
+        <span><%= successMessage %></span>
+        <small class="d-block text-right font-italic">- Martin Luther</small>
+        <button class="flash-close-btn">&times;</button>
+    </div>
+<% } %>
 
     <div class="container mt-5">
         <!-- Content from specific pages will be injected here -->
