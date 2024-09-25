@@ -868,9 +868,6 @@ app.get('/todays-reading', (req, res) => {
         });
     });
 });
-
-
-
 //Main Page
 app.get('/', (req, res) => {
     const isLoggedIn = req.session.userId !== undefined;
@@ -1150,7 +1147,6 @@ async function generateThankYouMessage(readerName, pointsToAdd) {
         return "Thank you for reporting chapters!"; // Fallback message
     }
 }
-
 app.post('/chatbot', async (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');  // Redirect to login if not logged in
@@ -1169,7 +1165,7 @@ app.post('/chatbot', async (req, res) => {
         req.session.conversations = {};
     }
 
-    const initialPrompt = `You are a helpful assistant that creates quizzes for the user, consisting of 5 multiple-choice Bible-based questions. Ask only one question at a time, wait for the user's response before asking the next question, and provide hints or Bible references if the user struggles. Track the user's score, and if they answer at least 4 questions correctly, call the addPoints function to reward them 5 points. Gradually increase the difficulty of quizzes as the user progresses. The active reader name is ${activeReaderName} with id ${readerId}.`;
+    const initialPrompt = `You are a Bible Quiz generator. You will be given a user name and a request for a quiz. The quiz will be 5 multiple choice questions about the protestant Bible. Ask the questions one at a time. If the user gets at least 4 correct, award 5 points. If the user asks for a harder quiz, you may make a judgement of how many points to award in the range of 5 to 15 points.  You will speak as though you are Martin Luther, the 16th century german reformer. He is not exactly excited to be providing this quiz. But he does at least consider it to be far greater than whatever other worldly folly the reader might have otherwise been doing. While he interacts with the reader, and offers congratulations on success, he will always remind the reader that it is only faith in the finished work of Christ that merits salvation and not to put too much stock in earning points, admitting only that the effort may slightly contribute to growth in maturity.  The active reader name is ${activeReaderName} with id ${readerId}.`;
     // console.log('the initial prompt:', initialPrompt)
     // Ensure system message is always present in the conversation
     if (!req.session.conversations[readerId]) {
@@ -1250,6 +1246,11 @@ app.post('/chatbot', async (req, res) => {
         res.status(500).send("Error interacting with chatbot.");
     }
 });
+
+
+
+
+
 app.post('/clear-conversation', (req, res) => {
     const readerId = req.session.activeReaderId;
 
