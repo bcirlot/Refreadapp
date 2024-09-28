@@ -1,4 +1,6 @@
-// Setup
+/* ////////////
+Setup imports
+//////////////*/
 import axios from 'axios';
 import express from 'express';
 import sqlite3 from 'sqlite3';
@@ -145,13 +147,6 @@ app.use((req, res, next) => {
     res.locals.errorMessage = req.flash('error');
     next();
 });
-function ensureAdmin(req, res, next) {
-    if (req.user && req.role === 'admin') {
-        next(); // Proceed if the user is an admin
-    } else {
-        res.status(403).send('Forbidden: You do not have permission to access this page');
-    }
-}
 let db = new sqlite3.Database('../mydatabase.db', (err) => {
     if (err) {
         console.error(err.message);
@@ -1246,11 +1241,6 @@ app.post('/chatbot', async (req, res) => {
         res.status(500).send("Error interacting with chatbot.");
     }
 });
-
-
-
-
-
 app.post('/clear-conversation', (req, res) => {
     const readerId = req.session.activeReaderId;
 

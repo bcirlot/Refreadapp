@@ -14,6 +14,15 @@
             <p>Total Points: <%= readerTotalPoints %></p>
         </div>
     </div> 
+    <div class="mt-4"></div>
+        <h4>Progress to Next Level</h4>
+        <div class="progress">
+            <div class="progress-bar" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= progressPercentage %>" aria-valuemin="0" aria-valuemax="100">
+                <%= progressPercentage %>%
+            </div>
+        </div>
+        <p><%= readerTotalPoints %> / <%= nextLevelPoints %> points</p>
+    </div>
     <div class="container my-5">
         <h3 class="mb-4 text-center">Reader Tools</h3>
         <div class="btn-group d-flex justify-content-center mb-4" role="group" aria-label="Reader Tools">
@@ -44,15 +53,7 @@
     <!-- <span class="badge badge-success"><%= level %></span> -->
     
     <!-- Progress bar toward the next level -->
-    <div class="mt-4">
-        <h4>Progress to Next Level</h4>
-        <div class="progress">
-            <div class="progress-bar" role="progressbar" style="width: <%= progressPercentage %>%;" aria-valuenow="<%= progressPercentage %>" aria-valuemin="0" aria-valuemax="100">
-                <%= progressPercentage %>%
-            </div>
-        </div>
-        <p><%= readerTotalPoints %> / <%= nextLevelPoints %> points</p>
-    </div>
+    
     <h3>Current Level: <%= level %></h3>
     <div class="mt-4">
         <p><%= levelDescription %></p>
