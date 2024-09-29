@@ -147,6 +147,12 @@ app.use((req, res, next) => {
     res.locals.errorMessage = req.flash('error');
     next();
 });
+function isAdmin(req, res, next) {
+    if (req.session.role !== 'admin') {
+        return res.redirect('/');
+    }
+    next();
+}
 let db = new sqlite3.Database('../mydatabase.db', (err) => {
     if (err) {
         console.error(err.message);
@@ -2196,6 +2202,60 @@ app.get('/reader-reports/:readerId', (req, res) => {
         res.render('reader-reports', { reports });
     });
 });
+// Promisify the db.all method
+const getUserPoints = () => {
+    return new Promise((resolve, reject) => {
+        db.all('SELECT * FROM userpoints', (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+};
+
+// Route to get user points
+app.get('/admin/userpoints', isAdmin, async (req, res) => {
+    try {
+        const userpoints = await getUserPoints();
+        res.render('admin_userpoints', { userpoints });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server error');
+    }
+});
+app.post('/admin/userpoints/edit/:reader_id', async (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.redirect('/');
+    } 
+    const { reader_id } = req.params;
+    const { user_points } = req.body;
+
+    try {
+        await db.run('UPDATE userpoints SET user_points = ? WHERE reader_id = ?', [user_points, reader_id]);
+        res.redirect('/admin/userpoints');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server error');
+    }
+});
+app.post('/admin/userpoints/delete/:reader_id', async (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.redirect('/');
+    } 
+    const { reader_id } = req.params;
+
+    try {
+        await db.run('DELETE FROM userpoints WHERE reader_id = ?', [reader_id]);
+        res.redirect('/admin/userpoints');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server error');
+    }
+});
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
