@@ -1,6 +1,6 @@
 <!-- <h1><%= book %> <%= chapter %></h1> -->
 <div class="audio-player">
-    <audio controls>
+    <audio id="audioPlayer" controls>
         <source src="<%= audioUrl %>" type="audio/mp3">
         Your browser does not support the audio element.
     </audio>
@@ -14,7 +14,14 @@
     <input type="hidden" name="chapter" value="<%= chapter %>">
     <button type="submit" class="btn btn-primary mt-3">Mark as Read</button>
 </form>
-
+<script>
+    // On page load, set the playback speed based on the saved user preference
+    window.onload = function() {
+      const savedSpeed = localStorage.getItem('playbackSpeed') || 1;
+      var audio = document.getElementById('audioPlayer');
+      audio.playbackRate = savedSpeed;
+    };
+    </script>
 <script>
 function disableButton(form) {
     const button = form.querySelector('button');

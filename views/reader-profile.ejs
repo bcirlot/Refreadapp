@@ -62,8 +62,33 @@
         <img src="/ml<%= currentLevelId ? currentLevelId : 1 %>.webp" alt="Level Image" class="img-fluid">
     </div>
     
-    
+    <!-- Form on the user's profile page to set the audio playback speed -->
+<form id="speedForm" onsubmit="savePlaybackSpeed(event)">
+    <label for="speed">Set your preferred playback speed:</label>
+    <select id="speed">
+      <option value="0.5">0.5x</option>
+      <option value="1" selected>1x (Normal)</option>
+      <option value="1.5">1.5x</option>
+      <option value="2">2x</option>
+    </select>
+    <button type="submit">Save Preference</button>
+  </form>
 </div>
+<script>
+    // On page load, populate the speed form with the saved preference
+    window.onload = function() {
+      const savedSpeed = localStorage.getItem('playbackSpeed') || 1;
+      document.getElementById('speed').value = savedSpeed;
+    };
+    
+    // Save the user's speed preference when the form is submitted
+    function savePlaybackSpeed(event) {
+      event.preventDefault(); // Prevent the form from submitting traditionally
+      const selectedSpeed = document.getElementById('speed').value;
+      localStorage.setItem('playbackSpeed', selectedSpeed);
+      alert('Playback speed preference saved!');
+    }
+    </script>
 <script>
     function copyReferralLink() {
         const copyText = document.querySelector('.profile-referral input');
