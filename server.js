@@ -2086,42 +2086,19 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
         });
 });
 function addPoints(readerId, pointsToAdd, callback) {
-    const checkSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
+    const updateSql = `UPDATE userpoints SET user_points = user_points + ? WHERE reader_id = ?`;
 
-    db.get(checkSql, [readerId], (err, row) => {
+    db.run(updateSql, [pointsToAdd, readerId], (err) => {
         if (err) {
-            console.error("Error checking for existing points:", err.message);
+            console.error("Error updating points:", err.message);
             return callback(err); // Pass the error to the callback
         }
 
-        if (row) {
-            const newPoints = row.user_points + pointsToAdd;
-            const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
-
-            db.run(updateSql, [newPoints, readerId], (err) => {
-                if (err) {
-                    console.error("Error updating points:", err.message);
-                    return callback(err); // Pass the error to the callback
-                }
-
-                console.log(`Updated points for reader ${readerId}. New total: ${newPoints}`);
-                updateReaderLevel(readerId, newPoints, callback); // Pass the callback to updateReaderLevel
-            });
-        } else {
-            const insertSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
-
-            db.run(insertSql, [readerId, pointsToAdd], (err) => {
-                if (err) {
-                    console.error("Error inserting new points:", err.message);
-                    return callback(err); // Pass the error to the callback
-                }
-
-                console.log(`Inserted ${pointsToAdd} points for reader ${readerId}.`);
-                updateReaderLevel(readerId, pointsToAdd, callback); // Pass the callback to updateReaderLevel
-            });
-        }
+        console.log(`Updated points for reader ${readerId}. Added ${pointsToAdd} points.`);
+        updateReaderLevel(readerId, pointsToAdd, callback); // Pass the callback to updateReaderLevel
     });
 }
+
 function updateReaderLevel(readerId, totalPoints, callback) {
     const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
 
@@ -2214,7 +2191,6 @@ const getUserPoints = () => {
         });
     });
 };
-
 // Route to get user points
 app.get('/admin/userpoints', isAdmin, async (req, res) => {
     try {
@@ -2254,8 +2230,6 @@ app.post('/admin/userpoints/delete/:reader_id', async (req, res) => {
         res.status(500).send('Server error');
     }
 });
-
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
