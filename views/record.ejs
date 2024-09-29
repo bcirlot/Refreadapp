@@ -1,7 +1,7 @@
 <div class="container">
     <div id="maincontent" class="mt-4">
         <h1 class="mb-4">Record a Chapter Range</h1>
-        <form action="/record" method="post" id="chapterForm">
+        <form action="/record" method="post" id="chapterForm" onsubmit="disableButton(event);">
           
 
             <input type="hidden" id="startChapterId" name="startChapterId" required>
@@ -36,7 +36,13 @@
     </div>
 </div>
 
-
+<script>
+    function disableButton(event) {
+        const button = event.submitter; // The specific button clicked
+        button.disabled = true;
+        button.innerHTML = 'Processing...'; // Optional: Change the button text
+    }
+    </script>
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {

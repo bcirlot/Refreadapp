@@ -1,7 +1,7 @@
 <div class="container mt-4">
     <h1>Record by Book</h1>
     
-    <form action="/record-by-book" method="post" id="recordBookForm">
+    <form action="/record-by-book" method="post" id="recordBookForm" onsubmit="disableButton(this);">
         
 
         <div class="form-group">
@@ -33,5 +33,9 @@
 </div>
 <!-- Include JavaScript at the end of the page -->
 <script>
-
-</script>
+    function disableButton(form) {
+        const button = form.querySelector('button');
+        button.disabled = true;
+        button.innerHTML = 'Processing...'; // Optional: Change the button text
+    }
+    </script>

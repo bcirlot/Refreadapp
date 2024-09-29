@@ -9,8 +9,16 @@
     <%- passageHTML %>
 </div>
 <!-- Mark as Read Button -->
-<form action="/mark-chapter-read" method="POST">
+<form action="/mark-chapter-read" method="POST" onsubmit="disableButton(this);">
     <input type="hidden" name="bookName" value="<%= book %>">
     <input type="hidden" name="chapter" value="<%= chapter %>">
     <button type="submit" class="btn btn-primary mt-3">Mark as Read</button>
 </form>
+
+<script>
+function disableButton(form) {
+    const button = form.querySelector('button');
+    button.disabled = true;
+    button.innerHTML = 'Processing...'; // Optional: Change the button text
+}
+</script>
