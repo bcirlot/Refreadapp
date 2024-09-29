@@ -3,12 +3,12 @@
 <table>
     <thead>
         <tr>
-            <th>Reader ID</th>
+            <th><a href="#" onclick="sortTable(0)">Reader ID</a></th>
             <th>User Points</th>
             <th>Actions</th>
         </tr>
     </thead>
-    <tbody>
+    <tbody id="userpointsTableBody">
         <% userpoints.forEach(function(entry) { %>
             <tr>
                 <td><%= entry.reader_id %></td>
@@ -27,3 +27,25 @@
         <% }) %>
     </tbody>
 </table>
+<script>
+    function sortTable(columnIndex) {
+        var table = document.getElementById("userpointsTableBody");
+        var rows = Array.from(table.getElementsByTagName("tr"));
+        
+        // Sort rows by the specified column (numeric sort for reader_id)
+        rows.sort(function(a, b) {
+            var cellA = a.getElementsByTagName("td")[columnIndex].innerText;
+            var cellB = b.getElementsByTagName("td")[columnIndex].innerText;
+            
+            // Convert to integer for numeric comparison
+            return parseInt(cellA) - parseInt(cellB);
+        });
+    
+        // Clear the table body and re-append the sorted rows
+        table.innerHTML = "";
+        rows.forEach(function(row) {
+            table.appendChild(row);
+        });
+    }
+    </script>
+    
