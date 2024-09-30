@@ -222,26 +222,39 @@ app.get('/select-reader', (req, res) => {
         return res.redirect('/login');
     }
 
-    // Fetch the readers for the logged-in user's family
-    const familySql = `SELECT readers.id, readers.reader_name 
-                       FROM readers 
-                       INNER JOIN family ON readers.family_id = family.id 
-                       WHERE family.user_id = ?`;
+    // First, get the family_id for the logged-in user
+    const userSql = `SELECT family_id FROM users WHERE id = ?`;
 
-    db.all(familySql, [req.session.userId], (err, readers) => {
+    db.get(userSql, [req.session.userId], (err, user) => {
         if (err) {
-            console.error('Error retrieving readers:', err.message);
-            return res.status(500).send('Error retrieving readers.');
+            console.error('Error retrieving user family ID:', err.message);
+            return res.status(500).send('Error retrieving user family ID.');
         }
 
-        if (readers.length === 0) {
-            return res.redirect('/manage'); // Redirect if no readers exist
+        if (!user || !user.family_id) {
+            console.error('No family ID found for user.');
+            return res.status(500).send('No family found.');
         }
 
-        // Render the select reader page
-        res.render('select-reader', { readers });
+        // Fetch the readers for the user's family_id
+        const familySql = `SELECT id, reader_name FROM readers WHERE family_id = ?`;
+
+        db.all(familySql, [user.family_id], (err, readers) => {
+            if (err) {
+                console.error('Error retrieving readers:', err.message);
+                return res.status(500).send('Error retrieving readers.');
+            }
+
+            if (readers.length === 0) {
+                return res.redirect('/manage'); // Redirect if no readers exist
+            }
+
+            // Render the select reader page
+            res.render('select-reader', { readers });
+        });
     });
 });
+
 app.get('/reader-profile', (req, res) => {
     const readerId = req.session.activeReaderId;
 
