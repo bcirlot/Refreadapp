@@ -9,14 +9,14 @@
             <h2>Total Chapters Read: <%= totalChaptersRead %></h2>
             <h4>Goal: 50,000 Chapters</h4>
             <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
-                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (totalChaptersRead / 10000) * 100 %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (totalChaptersRead / 50000) * 100 %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
                     <%= Math.round((totalChaptersRead / 50000) * 100) %>%
                 </div>
             </div>
             
             <h2>Full Bibles Read: <%= completions %></h2>
             <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
-                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= progressPercentage %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="50000">
+                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= progressPercentage %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
                     <%= progressPercentage %>%
                 </div>
             </div>
