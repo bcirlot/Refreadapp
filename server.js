@@ -1760,23 +1760,37 @@ app.post('/addReader', (req, res) => {
     // Insert a new reader associated with the logged-in user's family
     const insertReaderSql = `INSERT INTO readers (family_id, reader_name, referral_token ) VALUES (?, ?, ?)`;
     const findNewReaderSql = `SELECT id FROM readers WHERE family_id = ? AND reader_name = ?`;
+
     db.run(insertReaderSql, [familyId, readerName, referralToken], function (err) {
         if (err) {
             console.error('Error adding reader:', err.message);
             return res.status(500).send('Error adding reader');
         }
         console.log(`Added new reader with ID ${this.lastID}`);
-        db.get(findNewReaderSql, [familyId, readerName],(err, row) => {
+
+        // Find the newly added reader's ID
+        db.get(findNewReaderSql, [familyId, readerName], (err, row) => {
             if (err) {
-                console.error(err.message);
+                console.error('Error retrieving reader id:', err.message);
                 return res.status(500).send('Error retrieving reader id');
             }
             const readerId = row.id;
-            addPoints(readerId, 1);
+
+            // Add an entry for the new reader in the userpoints table with 1 point
+            const insertUserPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, 1)`;
+            db.run(insertUserPointsSql, [readerId], (err) => {
+                if (err) {
+                    console.error('Error inserting initial points:', err.message);
+                    return res.status(500).send('Error inserting initial points');
+                }
+
+                console.log(`Inserted 1 point for new reader with ID ${readerId}`);
+                res.redirect('/manage');
+            });
         });
-        res.redirect('/manage');
     });
 });
+
 app.post('/createFamily', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
