@@ -1,0 +1,26 @@
+<h1>Readers List</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Reader ID</th>
+            <th>Reader Name</th>
+            <th>Family Name</th>
+            <th>Chapters Reported</th>
+            <th>Total Points</th>
+            <th>Current Level</th>
+        </tr>
+    </thead>
+    <tbody>
+        <% readers.forEach(function(reader) { %>
+            <tr>
+                <td><%= reader.reader_id %></td>
+                <td><%= reader.reader_name %></td>
+                <td><%= reader.family_name %></td>
+                <td><%= reader.chapters_reported %></td>
+                <td><%= reader.total_points %></td>
+                <td><%= reader.current_level %></td>
+            </tr>
+        <% }) %>
+    </tbody>
+</table>

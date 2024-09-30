@@ -1,24 +1,37 @@
 <div class="container mt-5">
     <h1 class="text-center mb-4">Reader's Reports</h1>
 
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th scope="col">Book</th>
-                <th scope="col">Chapter</th>
-                <th scope="col">Date Reported</th>
-            </tr>
-        </thead>
-        <tbody>
-            <% reports.forEach(function(report) { %>
+    <!-- Add a form to handle the delete action -->
+    <form action="/delete-reports/<%= readerId %>" method="POST">
+        <div class="text-center mt-4"></div>
+            <button type="submit" class="btn btn-danger">Delete Selected</button>
+        </div>
+        <table class="table table-striped">
+            <thead>
                 <tr>
-                    <td><%= report.book %></td>
-                    <td><%= report.chapter %></td>
-                    <td><%= new Date(report.timestamp).toLocaleString() %></td>
+                    <th scope="col">Select</th>
+                    <th scope="col">Book</th>
+                    <th scope="col">Chapter</th>
+                    <th scope="col">Date Reported</th>
                 </tr>
-            <% }); %>
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                <% reports.forEach(function(report) { %>
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="rowIds[]" value="<%= report.id %>">
+                        </td>
+                        <td><%= report.book %></td>
+                        <td><%= report.chapter %></td>
+                        <td><%= new Date(report.timestamp).toLocaleString() %></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+
+        <!-- Submit button to delete selected reports -->
+        
+    </form>
 
     <div class="text-center mt-4">
         <a href="/manage" class="btn btn-primary">Back to Manage Page</a>

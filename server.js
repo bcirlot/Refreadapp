@@ -641,16 +641,38 @@ app.post('/register', (req, res) => {
 
                 // Check if there is a referring reader
                 if (referringReaderId) {
-                    const addPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
-                    db.run(addPointsSql, [referringReaderId, 25], (err) => {
+                    // First, check if the reader already has points in the userpoints table
+                    const checkPointsSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
+                
+                    db.get(checkPointsSql, [referringReaderId], (err, row) => {
                         if (err) {
-                            console.error('Error adding referral points:', err.message);
+                            console.error('Error checking for existing points:', err.message);
+                        } else if (row) {
+                            // If the reader already has points, update the existing row
+                            const updatePointsSql = `UPDATE userpoints SET user_points = user_points + ? WHERE reader_id = ?`;
+                            db.run(updatePointsSql, [25, referringReaderId], (err) => {
+                                if (err) {
+                                    console.error('Error updating referral points:', err.message);
+                                } else {
+                                    // Add flash message for the referring reader
+                                    req.session.flashMessage = 'You have earned 25 points from a referral!';
+                                }
+                            });
                         } else {
-                            // Add flash message for the referring reader
-                            req.session.flashMessage = 'You have earned 25 points from a referral!';
+                            // If the reader does not have points, insert a new row
+                            const addPointsSql = `INSERT INTO userpoints (reader_id, user_points) VALUES (?, ?)`;
+                            db.run(addPointsSql, [referringReaderId, 25], (err) => {
+                                if (err) {
+                                    console.error('Error adding referral points:', err.message);
+                                } else {
+                                    // Add flash message for the referring reader
+                                    req.session.flashMessage = 'You have earned 25 points from a referral!';
+                                }
+                            });
                         }
                     });
                 }
+                
 
                 // Redirect to the manage page after successful registration
                 res.redirect('/manage');
@@ -1109,8 +1131,19 @@ app.post('/record', (req, res) => {
     }
 
     const chapters = Array.from({ length: endChapter - startChapter + 1 }, (_, i) => startChapter + i);
-    recordChapters(userId, readerId, chapters, bookName, res, req, '/reader-profile');
+
+    // Use recordChapters and handle the response after completion
+    recordChapters(userId, readerId, chapters, bookName, res, req, '/reader-profile', (err) => {
+        if (err) {
+            console.error('Error recording chapters:', err);
+            return res.status(500).send('Error recording chapters.');
+        }
+
+        // Once the chapters have been recorded, redirect to the reader profile
+        
+    });
 });
+
 // The function to generate a thank you message
 async function generateThankYouMessage(readerName, pointsToAdd) {
     const assistantId = "asst_KuigPHVlLvD7qsOwcwRXUuXp"; // Replace with the actual assistant ID from your OpenAI Assistant
@@ -1262,7 +1295,6 @@ app.post('/clear-conversation', (req, res) => {
         return res.status(400).send("No conversation to clear for this reader.");
     }
 });
-// Update the recordChapters function to use OpenAI API
 async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
     const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
     const stmt = db.prepare(insertChapterSql);
@@ -1321,12 +1353,14 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
         stmt.finalize(async (err) => {
             if (err) {
                 console.error('Error finalizing statement:', err.message);
-                return res.status(500).send('Error recording chapters.');
+                if (!hasErrorOccurred) {
+                    hasErrorOccurred = true;
+                    return callback(err);
+                }
             }
 
             if (hasErrorOccurred) {
-                console.log('Some errors occurred during the process.');
-                return res.status(500).send('Error occurred while recording some chapters.');
+                return; // Make sure no further operations run if there's an error
             }
 
             if (totalPointsToAdd > 0) {
@@ -1338,8 +1372,10 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
                 console.log(`${totalPointsToAdd} points added for readerId: ${readerId}`);
                 // Flash the custom message
                 req.flash('success', customMessage);
-                res.redirect(redirectRoute);
-            } else {
+                if (!hasErrorOccurred) {
+                    res.redirect(redirectRoute);
+                }
+            } else if (!hasErrorOccurred) {
                 res.redirect(redirectRoute);
             }
 
@@ -1350,6 +1386,7 @@ async function recordChapters(userId, readerId, chapters, bookName, res, req, re
         });
     }
 }
+
 function checkForCompletion(readerId, chapterId, callback) {
     const totalBibleChapters = 1189; // Total chapters in the Bible
 
@@ -1437,17 +1474,29 @@ app.post('/record-by-book', (req, res) => {
         return res.status(400).send('Missing required data.');
     }
 
+    // Process each book and let recordChapters handle the redirect for each one
     bookNames.forEach(bookName => {
         db.all(`SELECT chapter FROM chaptersmaster WHERE book = ?`, [bookName], (err, chapters) => {
             if (err || !chapters.length) {
+                console.error('Error retrieving chapters for the book:', err);
                 return res.status(500).send('Error retrieving chapters for the book.');
             }
 
             const chapterIds = chapters.map(chapter => chapter.chapter);
-            recordChapters(userId, readerId, chapterIds, bookName, res, req, '/reader-profile');
+
+            // Let recordChapters handle the redirect
+            recordChapters(userId, readerId, chapterIds, bookName, res, req, '/reader-profile', (err) => {
+                if (err) {
+                    console.error('Error recording chapters:', err);
+                    return res.status(500).send('Error recording chapters.');
+                }
+
+                console.log(`Chapters from ${bookName} recorded.`);
+            });
         });
     });
 });
+
 app.get('/chapter/:book/:chapter', async (req, res) => {
     const book = req.params.book;
     const chapter = req.params.chapter;
@@ -1560,20 +1609,29 @@ app.post('/mark-chapter-read', (req, res) => {
                     if (err || !nextChapter) {
                         console.error('Error retrieving next chapter:', err.message);
                     } else {
-                        
                         // Set the redirect to the next chapter
                         redirectRoute = `/chapter/${nextChapter.book}/${nextChapter.chapter}?autoplay=true&speed=${playbackSpeed}`;
                     }
 
                     // Call the recordChapters function with the redirect route
-                    recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, () => {
+                    recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, (err) => {
+                        if (err) {
+                            console.error('Error recording chapter:', err);
+                            return res.status(500).send('Error marking chapter as read.');
+                        }
                         console.log('Chapter marked as read and points updated.');
+                          // Send response after recordChapters finishes
                     });
                 });
             } else {
                 // If no more chapters, mark the chapter and redirect to the profile
-                recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, () => {
+                recordChapters(userId, readerId, [chapterNumber], bookName, res, req, redirectRoute, (err) => {
+                    if (err) {
+                        console.error('Error recording chapter:', err);
+                        return res.status(500).send('Error marking chapter as read.');
+                    }
                     console.log('Chapter marked as read and points updated.');
+                      // Send response after recordChapters finishes
                 });
             }
         });
@@ -2098,7 +2156,6 @@ function addPoints(readerId, pointsToAdd, callback) {
         updateReaderLevel(readerId, pointsToAdd, callback); // Pass the callback to updateReaderLevel
     });
 }
-
 function updateReaderLevel(readerId, totalPoints, callback) {
     const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
 
@@ -2162,7 +2219,7 @@ app.get('/reader-reports/:readerId', (req, res) => {
 
     // Query to get all chapters reported by this reader
     const reportsSql = `
-        SELECT user_chapters.chapter_id, chaptersmaster.book, chaptersmaster.chapter, user_chapters.timestamp
+        SELECT user_chapters.id, chaptersmaster.book, chaptersmaster.chapter, user_chapters.timestamp
         FROM user_chapters
         JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
         WHERE user_chapters.reader_id = ?
@@ -2175,10 +2232,133 @@ app.get('/reader-reports/:readerId', (req, res) => {
             return res.status(500).send('Error retrieving reports');
         }
 
-        // Pass the reports data to the view
-        res.render('reader-reports', { reports });
+        // Pass the reports data and readerId to the view
+        res.render('reader-reports', { reports, readerId });
     });
 });
+app.post('/delete-reports/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+    let rowIds = req.body['rowIds[]']; // Capture the checkbox values
+
+    // Convert rowIds to an array if it's a single string value
+    if (!Array.isArray(rowIds)) {
+        rowIds = [rowIds];
+    }
+
+    if (!rowIds || rowIds.length === 0) {
+        return res.status(400).send('No reports selected for deletion');
+    }
+
+    // Call removeChapters, passing rowIds instead of chapterIds
+    removeChapters(readerId, rowIds, res, req, `/reader-reports/${readerId}`, (err) => {
+        if (err) {
+            console.error('Error removing chapters:', err.message);
+            return res.status(500).send('Error removing chapters.');
+        }
+    });
+});
+
+async function removeChapters(readerId, chaptersId, res, req, redirectRoute, callback) {
+    const deleteChapterSql = `DELETE FROM user_chapters WHERE id = ?`;
+    const stmt = db.prepare(deleteChapterSql);
+    let totalPointsToRemove = 0;
+    let pendingOperations = chaptersId.length;
+    let hasErrorOccurred = false;
+
+    chaptersId.forEach(chapterId => {
+        // Check if the chapter is part of a completion cycle by using completion_status
+        db.get(`SELECT id, completion_status FROM user_chapters WHERE reader_id = ? AND id = ?`, 
+            [readerId, chapterId], 
+            (err, row) => {
+                if (err) {
+                    console.error(`Error finding chapter ${chapterId}:`, err.message);
+                    hasErrorOccurred = true;
+                } else if (row) {
+                    // Reverse points based on completion status
+                    totalPointsToRemove += row.completion_status ? 5 : 1;
+
+                    stmt.run([chapterId], (err) => {
+                        if (err) {
+                            console.error(`Error deleting chapter ${chapterId}:`, err.message);
+                            hasErrorOccurred = true;
+                        }
+
+                        pendingOperations--;
+
+                        if (pendingOperations === 0) {
+                            finalizeTransaction();
+                        }
+                    });
+                } else {
+                    console.error(`Chapter ${chapterId} not found.`);
+                    hasErrorOccurred = true;
+                    pendingOperations--;
+                    if (pendingOperations === 0) {
+                        finalizeTransaction();
+                    }
+                }
+            });
+    });
+
+    async function finalizeTransaction() {
+        stmt.finalize(async (err) => {
+            if (err) {
+                console.error('Error finalizing statement:', err.message);
+                return res.status(500).send('Error removing chapters.');
+            }
+
+            if (hasErrorOccurred) {
+                console.log('Some errors occurred during the process.');
+                return res.status(500).send('Error occurred while removing some chapters.');
+            }
+
+            if (totalPointsToRemove > 0) {
+                await reversePoints(readerId, totalPointsToRemove);
+
+                const message = `${totalPointsToRemove} points removed for readerId: ${readerId}`;
+                req.flash('success', message);
+                res.redirect(redirectRoute);
+            } else {
+                res.redirect(redirectRoute);
+            }
+
+            if (typeof callback === 'function') {
+                callback(null);
+            }
+        });
+    }
+}
+
+function reversePoints(readerId, pointsToSubtract, callback) {
+    const updateSql = `UPDATE userpoints SET user_points = user_points - ? WHERE reader_id = ?`;
+
+    db.run(updateSql, [pointsToSubtract, readerId], (err) => {
+        if (err) {
+            console.error("Error reversing points:", err.message);
+            return callback(err); // Pass the error to the callback
+        }
+
+        console.log(`Reversed ${pointsToSubtract} points for reader ${readerId}.`);
+        
+        // After reversing points, fetch the new total points and update the reader's level
+        const totalPointsSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
+        db.get(totalPointsSql, [readerId], (err, row) => {
+            if (err) {
+                console.error('Error fetching updated total points:', err.message);
+                return callback(err);
+            }
+
+            const totalPoints = row ? row.user_points : 0;
+
+            // Update the reader's level based on the new total points
+            updateReaderLevel(readerId, totalPoints, callback);
+        });
+    });
+}
+
+
+
+
 // Promisify the db.all method
 const getUserPoints = () => {
     return new Promise((resolve, reject) => {
@@ -2216,20 +2396,97 @@ app.post('/admin/userpoints/edit/:reader_id', async (req, res) => {
         res.status(500).send('Server error');
     }
 });
-app.post('/admin/userpoints/delete/:reader_id', async (req, res) => {
-    if (req.session.role !== 'admin') {
-        return res.redirect('/');
-    } 
-    const { reader_id } = req.params;
+app.post('/delete-reports/:readerId', (req, res) => {
+    const readerId = req.params.readerId;
+    let rowIds = req.body['rowIds[]']; // Capture the checkbox values
 
+    // Convert rowIds to an array if it's a single string value
+    if (!Array.isArray(rowIds)) {
+        rowIds = [rowIds];
+    }
+
+    if (!rowIds || rowIds.length === 0) {
+        return res.status(400).send('No reports selected for deletion');
+    }
+
+    // Fetch chapter details for flash message
+    const fetchChaptersSql = `
+        SELECT chaptersmaster.book, chaptersmaster.chapter
+        FROM user_chapters
+        JOIN chaptersmaster ON user_chapters.chapter_id = chaptersmaster.id
+        WHERE user_chapters.id IN (${rowIds.map(() => '?').join(',')})
+    `;
+
+    db.all(fetchChaptersSql, rowIds, (err, chapters) => {
+        if (err) {
+            console.error('Error fetching chapters:', err.message);
+            return res.status(500).send('Error fetching chapters');
+        }
+
+        // Construct the SQL query to delete the selected rows based on the unique row id
+        const deleteSql = `
+            DELETE FROM user_chapters
+            WHERE id IN (${rowIds.map(() => '?').join(',')})
+        `;
+
+        db.run(deleteSql, rowIds, (err) => {
+            if (err) {
+                console.error('Error deleting reports:', err.message);
+                return res.status(500).send('Error deleting reports');
+            }
+
+            // Format the deleted chapters for the flash message
+            const deletedChapters = chapters.map(chapter => `${chapter.book} ${chapter.chapter}`).join(', ');
+
+            // Set flash message with deleted chapters
+            req.flash('success', `Successfully deleted the following chapters: ${deletedChapters}`);
+
+            // Redirect back to the reports page after deletion
+            res.redirect(`/reader-reports/${readerId}`);
+        });
+    });
+});
+
+const getReadersInfo = () => {
+    return new Promise((resolve, reject) => {
+        const query = `
+            SELECT 
+                readers.id AS reader_id,
+                readers.reader_name,
+                family.family_name,
+                COUNT(user_chapters.id) AS chapters_reported,
+                IFNULL(userpoints.user_points, 0) AS total_points,
+                levels.level_name AS current_level
+            FROM 
+                readers
+            LEFT JOIN family ON readers.family_id = family.id
+            LEFT JOIN user_chapters ON readers.id = user_chapters.reader_id
+            LEFT JOIN userpoints ON readers.id = userpoints.reader_id
+            LEFT JOIN levels ON readers.current_level_id = levels.id
+            GROUP BY 
+                readers.id, readers.reader_name, family.family_name, userpoints.user_points, levels.level_name
+            ORDER BY readers.id;
+        `;
+        db.all(query, (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+};
+app.get('/admin/readers', isAdmin, async (req, res) => {
     try {
-        await db.run('DELETE FROM userpoints WHERE reader_id = ?', [reader_id]);
-        res.redirect('/admin/userpoints');
+        const readers = await getReadersInfo();
+        res.render('readers_list', { readers });
     } catch (err) {
         console.error(err);
         res.status(500).send('Server error');
     }
 });
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
