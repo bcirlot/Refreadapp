@@ -2271,6 +2271,20 @@ app.post('/delete-reports/:readerId', (req, res) => {
         }
     });
 });
+app.post('/admin/userpoints/delete/:reader_id', async (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.redirect('/');
+    } 
+    const { reader_id } = req.params;
+
+    try {
+        await db.run('DELETE FROM userpoints WHERE reader_id = ?', [reader_id]);
+        res.redirect('/admin/userpoints');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server error');
+    }
+});
 
 async function removeChapters(readerId, chaptersId, res, req, redirectRoute, callback) {
     const deleteChapterSql = `DELETE FROM user_chapters WHERE id = ?`;
