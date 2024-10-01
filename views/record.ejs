@@ -19,12 +19,9 @@
                                         <span class="d-block mb-3">Select Start and End Chapters:</span>
                                     </div>
                                 <% chaptersByBook[book].forEach(function(chapter) { %>
-                                    <div class="col-1 mb-1">
-                                        
-                                        <div class="chapter-item btn btn-outline-primary" data-start="<%= chapter.chapter %>" data-end="<%= chapter.chapter %>">
+                                        <div class="col-1 mb-1 mr-1 chapter-item btn btn-outline-primary" data-start="<%= chapter.chapter %>" data-end="<%= chapter.chapter %>">
                                             <%= chapter.chapter %>
                                         </div>
-                                    </div>
                                 <% }); %>
                             </div>
                             <button type="submit" class="btn btn-primary mt-3">Record Chapter Range</button>
@@ -45,7 +42,7 @@
     </script>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", function () {
         var coll = document.getElementsByClassName("collapsible");
         var overlay = document.createElement("div");
         overlay.classList.add("overlay");
@@ -55,7 +52,7 @@
         let bookName = null;
 
         for (var i = 0; i < coll.length; i++) {
-            coll[i].addEventListener("click", function() {
+            coll[i].addEventListener("click", function () {
                 this.classList.toggle("active");
                 var content = this.nextElementSibling;
 
@@ -75,9 +72,9 @@
             });
         }
 
-        overlay.addEventListener("click", function(event) {
+        overlay.addEventListener("click", function (event) {
             if (event.target === overlay) {
-                document.querySelectorAll('.content').forEach(function(content) {
+                document.querySelectorAll('.content').forEach(function (content) {
                     content.style.display = "none";
                 });
                 overlay.style.display = "none";
@@ -88,18 +85,25 @@
         });
 
         let startChapter = null;
-
-        document.querySelectorAll('.chapter-item').forEach(function(item) {
-            item.addEventListener('click', function(e) {
+        let endChapter = null;
+        document.querySelectorAll('.chapter-item').forEach(function (item) {
+            item.addEventListener('click', function (e) {
                 e.stopPropagation();
                 e.preventDefault();
 
-                if (!startChapter) {
+                if (!startChapter || startChapter === this) {
+                    endChapter = null;
+                    unHighlightChapterRange();
                     startChapter = this;
                     startChapter.classList.add('selected-chapter');
                     setChapterRange(this.getAttribute('data-start'), this.getAttribute('data-start'));
+                } else if (this.value < startChapter.value) {
+                    startChapter = this;
+                    startChapter.classList.add('selected-chapter');
+                    unHighlightChapterRange();
+                    setChapterRange(this.getAttribute('data-start'), this.getAttribute('data-start'));
                 } else {
-                    const endChapter = this;
+                    endChapter = this;
                     endChapter.classList.add('selected-chapter');
                     const startChapterName = startChapter.getAttribute('data-start');
                     const endChapterName = endChapter.getAttribute('data-end');
@@ -111,26 +115,36 @@
         });
 
         function highlightChapterRange(startChapter, endChapter) {
-        const chapterItems = document.querySelectorAll('.chapter-item');
-        let inRange = false;
-        
-        chapterItems.forEach(item => {
-            // Toggle inRange flag when start or end chapters are encountered
-            if (item === startChapter || item === endChapter) {
-                inRange = !inRange;
-                item.classList.add('range-selected-chapter');
-            }
+            const chapterItems = document.querySelectorAll('.chapter-item');
+            let inRange = false;
 
-            // If inRange is true, add the class to visually highlight the chapter
-            if (inRange || item === startChapter || item === endChapter) {
-                item.classList.add('range-selected-chapter');
-            } else {
-                item.classList.remove('range-selected-chapter');
-            }
-        });
-    }
+            chapterItems.forEach(item => {
+                // Toggle inRange flag when start or end chapters are encountered
+                if (item === startChapter || item === endChapter) {
+                    inRange = !inRange;
+                    item.classList.add('range-selected-chapter');
+                }
 
-        document.getElementById('chapterForm').addEventListener('submit', function(e) {
+                // If inRange is true, add the class to visually highlight the chapter
+                if (inRange || item === startChapter || item === endChapter) {
+                    item.classList.add('range-selected-chapter');
+                } else {
+                    item.classList.remove('range-selected-chapter');
+                }
+            });
+        }
+
+        function unHighlightChapterRange() {
+            const chapterItems = document.querySelectorAll('.chapter-item');
+
+            chapterItems.forEach(item => {
+                if (item !== startChapter) {
+                    item.classList.remove('range-selected-chapter');
+                }
+            });
+        }
+
+        document.getElementById('chapterForm').addEventListener('submit', function (e) {
             const startChapterId = document.getElementById('startChapterId').value;
             const endChapterId = document.getElementById('endChapterId').value;
             const selectedBook = document.getElementById('bookName').value;
