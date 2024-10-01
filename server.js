@@ -2363,18 +2363,40 @@ app.post('/upload-user-chapters', upload.single('csvFile'), (req, res) => {
         });
 });
 function addPoints(readerId, pointsToAdd, callback) {
-    const updateSql = `UPDATE userpoints SET user_points = user_points + ? WHERE reader_id = ?`;
+    // First, fetch the current points for the reader
+    const fetchPointsSql = `SELECT user_points FROM userpoints WHERE reader_id = ?`;
 
-    db.run(updateSql, [pointsToAdd, readerId], (err) => {
+    db.get(fetchPointsSql, [readerId], (err, row) => {
         if (err) {
-            console.error("Error updating points:", err.message);
+            console.error("Error fetching current points:", err.message);
             return callback(err); // Pass the error to the callback
         }
 
-        console.log(`Updated points for reader ${readerId}. Added ${pointsToAdd} points.`);
-        updateReaderLevel(readerId, pointsToAdd, callback); // Pass the callback to updateReaderLevel
+        if (row) {
+            const currentPoints = row.user_points;
+            const newTotalPoints = currentPoints + pointsToAdd;
+
+            // Update the points for the reader
+            const updateSql = `UPDATE userpoints SET user_points = ? WHERE reader_id = ?`;
+
+            db.run(updateSql, [newTotalPoints, readerId], (err) => {
+                if (err) {
+                    console.error("Error updating points:", err.message);
+                    return callback(err); // Pass the error to the callback
+                }
+
+                console.log(`Updated points for reader ${readerId}. New total: ${newTotalPoints}`);
+                
+                // Now update the reader's level based on the new total points
+                updateReaderLevel(readerId, newTotalPoints, callback); // Pass the callback to updateReaderLevel
+            });
+        } else {
+            console.error("No points found for reader:", readerId);
+            return callback(new Error('No points found for reader'));
+        }
     });
 }
+
 function updateReaderLevel(readerId, totalPoints, callback) {
     const levelSql = `SELECT id, level_name FROM levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1`;
 
@@ -2384,9 +2406,7 @@ function updateReaderLevel(readerId, totalPoints, callback) {
             if (typeof callback === 'function') {
                 return callback(err);
             }
-        }
-
-        else if (level) {
+        } else if (level) {
             const updateLevelSql = `UPDATE readers SET current_level_id = ? WHERE id = ?`;
 
             db.run(updateLevelSql, [level.id, readerId], (err) => {
@@ -2403,12 +2423,14 @@ function updateReaderLevel(readerId, totalPoints, callback) {
                 }
             });
         } else {
+            console.log('No level found for the given total points.');
             if (typeof callback === 'function') {
                 callback(null);
             }
         }
     });
 }
+
 function generateReferralToken() {
     return crypto.randomBytes(16).toString('hex'); // Creates a unique token
 }
