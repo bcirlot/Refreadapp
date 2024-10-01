@@ -1,0 +1,41 @@
+<h1>Book Completions</h1>
+
+<div class="progress-list">
+    <% bookProgress.forEach(book => { %>
+        <div class="progress-container" style="margin-bottom: 15px; display: flex; align-items: center;">
+            <!-- Book name -->
+            <span style="width: 150px; display: inline-block;"><%= book.book %></span>
+
+            <!-- Progress bar -->
+            <div class="progress" style="width: 70%; display: inline-block; margin-left: 10px;">
+                <div class="progress-bar" role="progressbar" style="width: <%= (book.completions / 20) * 100 %>%;" aria-valuenow="<%= book.completions %>" aria-valuemin="0" aria-valuemax="20">
+                </div>
+            </div>
+
+            <!-- Completion count -->
+            <span style="padding-left: 10px;"><%= book.completions %></span>
+        </div>
+    <% }) %>
+</div>
+<style>
+    .progress-container {
+        width: 100%;
+        display: flex;
+        align-items: center;
+    }
+
+    .progress-bar {
+        background-color: #4caf50; /* You can customize this color */
+        height: 24px; /* Adjust height as needed */
+    }
+
+    .progress {
+        background-color: #e9ecef; /* Lighter background for the progress track */
+        height: 24px; /* Same height as the progress bar */
+        margin-left: 10px; /* Spacing between book name and progress bar */
+    }
+
+    .progress-list span {
+        font-size: 16px;
+    }
+</style>

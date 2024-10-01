@@ -1024,6 +1024,48 @@ app.get('/', (req, res) => {
         });
     });
 });
+app.get('/book-progress', (req, res) => {
+    // SQL to get the read counts for each chapter, preserving the order of books as in chaptersmaster
+    const chapterReadCountsSql = `
+        SELECT chaptersmaster.book, chaptersmaster.chapter, COUNT(user_chapters.chapter_id) AS read_count
+        FROM chaptersmaster
+        LEFT JOIN user_chapters ON chaptersmaster.id = user_chapters.chapter_id
+        GROUP BY chaptersmaster.book, chaptersmaster.chapter
+        ORDER BY MIN(chaptersmaster.id)
+    `;
+
+    db.all(chapterReadCountsSql, (err, chapterReadCounts) => {
+        if (err) {
+            console.error('Error retrieving chapter read counts:', err.message);
+            return res.status(500).send('Error retrieving chapter read counts');
+        }
+
+        // Create a map to track the lowest read count for each book
+        let bookCompletionCounts = {};
+
+        // Iterate over each chapter's read count and determine the minimum read count for each book
+        chapterReadCounts.forEach(row => {
+            const { book, read_count } = row;
+
+            // Initialize the book in the map if it doesn't exist yet
+            if (!bookCompletionCounts[book]) {
+                bookCompletionCounts[book] = read_count || 0;
+            }
+
+            // Update the book's completion count with the minimum read count
+            bookCompletionCounts[book] = Math.min(bookCompletionCounts[book], read_count || 0);
+        });
+
+        // Prepare data for rendering in the order of appearance in chaptersmaster
+        const bookProgress = Object.keys(bookCompletionCounts).map(book => ({
+            book,
+            completions: Math.min(bookCompletionCounts[book], 20) // Cap the completion count at 20
+        }));
+
+        // Render the progress view
+        res.render('book-progress', { bookProgress });
+    });
+});
 app.get('/bible-progress', (req, res) => {
     const totalBibleChapters = 1189; // Total chapters in the Bible
 
