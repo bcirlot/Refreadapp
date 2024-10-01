@@ -1,0 +1,41 @@
+<!-- <h1><%= book %> <%= chapter %></h1> -->
+<form action="/group-read" method="POST">
+    <input type="hidden" name="bookName" value="<%= book %>">
+    <input type="hidden" name="chapter" value="<%= chapter %>">
+    
+    <% readers.forEach(reader => { %>
+        <div>
+            <input type="checkbox" name="readerIds[]" value="<%= reader.id %>">
+            <label for="reader-<%= reader.id %>"><%= reader.reader_name %></label>
+        </div>
+    <% }) %>
+
+    <button type="submit">Mark Chapter as Read</button>
+</form>
+
+<div class="audio-player">
+    <audio id="audioPlayer" controls>
+        <source src="<%= audioUrl %>" type="audio/mp3">
+        Your browser does not support the audio element.
+    </audio>
+</div>
+<div class="bible-chapter">
+    <%- passageHTML %>
+</div>
+<!-- Mark as Read Button -->
+
+<script>
+    // On page load, set the playback speed based on the saved user preference
+    window.onload = function() {
+      const savedSpeed = localStorage.getItem('playbackSpeed') || 1;
+      var audio = document.getElementById('audioPlayer');
+      audio.playbackRate = savedSpeed;
+    };
+    </script>
+<script>
+function disableButton(form) {
+    const button = form.querySelector('button');
+    button.disabled = true;
+    button.innerHTML = 'Processing...'; // Optional: Change the button text
+}
+</script>
