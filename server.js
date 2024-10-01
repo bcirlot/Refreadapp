@@ -1571,6 +1571,198 @@ app.get('/chapter/:book/:chapter', async (req, res) => {
         res.status(500).send('Error processing the request.');
     }
 });
+app.get('/group/chapter/:book/:chapter', async (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const book = req.params.book;
+    const chapter = req.params.chapter;
+
+    const chapterIdSql = `SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`;
+    const familySql = `SELECT readers.id, readers.reader_name FROM readers WHERE family_id = (SELECT family_id FROM users WHERE id = ?)`;
+
+    try {
+        // Fetch the chapter ID from the database
+        const row = await new Promise((resolve, reject) => {
+            db.get(chapterIdSql, [book, chapter], (err, row) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(row);
+            });
+        });
+
+        if (!row) {
+            return res.status(404).send('Chapter not found');
+        }
+
+        const chapterId = row.id;  // Get the chapterId from the database
+
+        // Fetch the readers from the logged-in user's family
+        const readers = await new Promise((resolve, reject) => {
+            db.all(familySql, [userId], (err, rows) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(rows);
+            });
+        });
+
+        if (readers.length === 0) {
+            return res.status(404).send('No readers found for the user’s family.');
+        }
+
+        // Make a request to the ESV API for the passage HTML
+        const esvResponse = await axios.get('https://api.esv.org/v3/passage/html/', {
+            params: {
+                q: `${book} ${chapter}`,  // e.g., 'John 1'
+                'include-footnotes': false,
+                'include-headings': true,
+                'include-short-copyright': true,
+                'include-audio-link': false
+            },
+            headers: {
+                Authorization: `Token ${process.env.ESV_API_KEY}`
+            }
+        });
+
+        // Make a request to the ESV API for the audio passage
+        const audioResponse = await axios.get('https://api.esv.org/v3/passage/audio/', {
+            params: {
+                q: `${book} ${chapter}`
+            },
+            headers: {
+                Authorization: `Token ${process.env.ESV_API_KEY}`
+            }
+        });
+
+        // Extract the passage HTML and audio URL
+        const passageHTML = esvResponse.data.passages[0];
+        const audioUrl = audioResponse.request.res.responseUrl;  // Get the final redirect URL
+
+        // Render the HTML or pass it to the frontend with readers data
+        res.render('group-chapters', { passageHTML, book, chapter, chapterId, audioUrl, readers });
+
+    } catch (error) {
+        if (error.message === 'Chapter not found') {
+            return res.status(404).send(error.message);
+        }
+        console.error('Error:', error.message);
+        res.status(500).send('Error processing the request.');
+    }
+});
+
+async function recordGroupRead(userId, readerIds, chapters, bookName, res, req, redirectRoute, callback) {
+    const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
+    const stmt = db.prepare(insertChapterSql);
+    let totalPointsForReaders = {};  // Object to accumulate points for each reader
+    let pendingOperations = readerIds.length * chapters.length; // Total operations (readers * chapters)
+    let hasErrorOccurred = false;
+
+    // Fetch the chapter IDs from the chaptersmaster table
+    chapters.forEach(chapterId => {
+        db.get(`SELECT id FROM chaptersmaster WHERE book = ? AND chapter = ?`, [bookName, chapterId], (err, row) => {
+            if (err || !row) {
+                console.error(`Error finding chapter ${chapterId}:`, err ? err.message : 'Chapter not found');
+                hasErrorOccurred = true;
+                pendingOperations -= readerIds.length; // Reduce pending operations for each reader
+                if (pendingOperations === 0) finalizeTransaction();
+            } else {
+                const chapterMasterId = row.id;
+
+                // For each reader, mark the chapter as read and calculate points
+                readerIds.forEach(readerId => {
+                    db.get(`SELECT COUNT(*) AS times_read FROM user_chapters WHERE reader_id = ? AND chapter_id = ?`, 
+                    [readerId, chapterMasterId], (err, result) => {
+                        if (err) {
+                            console.error(`Error checking chapter read status for reader ${readerId}:`, err.message);
+                            hasErrorOccurred = true;
+                        } else {
+                            const isRepeatRead = result.times_read > 0;
+                            const pointsToAdd = isRepeatRead ? 1 : 5;
+
+                            // Accumulate points for each reader
+                            if (!totalPointsForReaders[readerId]) {
+                                totalPointsForReaders[readerId] = 0;
+                            }
+                            totalPointsForReaders[readerId] += pointsToAdd;
+
+                            // Insert chapter record for the reader
+                            stmt.run([userId, readerId, chapterMasterId], (err) => {
+                                if (err) {
+                                    console.error(`Error inserting chapter ${chapterId} for reader ${readerId}:`, err.message);
+                                    hasErrorOccurred = true;
+                                }
+
+                                pendingOperations--;
+                                if (pendingOperations === 0) {
+                                    finalizeTransaction();
+                                }
+                            });
+                        }
+                    });
+                });
+            }
+        });
+    });
+
+    async function finalizeTransaction() {
+        stmt.finalize(async (err) => {
+            if (err) {
+                console.error('Error finalizing statement:', err.message);
+                return res.status(500).send('Error recording chapters.');
+            }
+
+            if (hasErrorOccurred) {
+                return res.status(500).send('Error occurred while recording chapters.');
+            }
+
+            // Add accumulated points for each reader
+            for (const [readerId, points] of Object.entries(totalPointsForReaders)) {
+                await addPoints(readerId, points);
+                console.log(`${points} points added for readerId: ${readerId}`);
+            }
+
+            // Redirect after all points and chapters are processed
+            req.flash('success', 'Chapters marked as read for selected family members.');
+            res.redirect(redirectRoute);
+
+            if (typeof callback === 'function') {
+                callback(null);
+            }
+        });
+    }
+}
+app.post('/group-read', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+
+    const userId = req.session.userId;
+    const { bookName, chapter } = req.body;
+    const readerIds = req.body['readerIds[]']; // Array of selected reader IDs
+
+    if (!bookName || !chapter || !Array.isArray(readerIds)) {
+        req.flash('error', 'Please select a valid book, chapter, and family members.');
+        return res.redirect('/group-read');  // Redirect back to the group-read form in case of an error
+    }
+
+    const chapterNumber = parseInt(chapter);
+    const chapters = [chapterNumber];  // Could be expanded to handle multiple chapters
+
+    // Use the new group read function
+    recordGroupRead(userId, readerIds, chapters, bookName, res, req, '/reader-profile', (err) => {
+        if (err) {
+            console.error('Error recording group read:', err);
+            return res.status(500).send('Error marking group read.');
+        }
+
+        console.log('Group read successfully recorded.');
+    });
+});
+
 app.post('/mark-chapter-read', (req, res) => {
     const userId = req.session.userId;
     const readerId = req.session.activeReaderId;
@@ -2228,7 +2420,7 @@ app.get('/leaderboard', (req, res) => {
         JOIN readers ON userpoints.reader_id = readers.id
         GROUP BY readers.reader_name, readers.current_level_id
         ORDER BY total_points DESC
-        LIMIT 10
+        LIMIT 25
     `;
 
     db.all(leaderboardSql, [], (err, rows) => {
