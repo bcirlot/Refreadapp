@@ -919,6 +919,11 @@ app.get('/', (req, res) => {
         FROM user_chapters
         GROUP BY chapter_id`;
 
+        // SQL query to get the number of unique readers who have at least one chapter reported
+    const uniqueReadersSql = `
+        SELECT COUNT(DISTINCT reader_id) AS uniqueReaders
+        FROM user_chapters
+    `;
     // Fetch total chapters read across all users
     db.get(totalChaptersSql, (err, totalRow) => {
         if (err) {
@@ -927,6 +932,14 @@ app.get('/', (req, res) => {
         }
 
         const totalChaptersRead = totalRow.total; // Total chapters read across all users
+
+        db.get(uniqueReadersSql, (err, readerRow) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send('Error retrieving unique readers');
+            }
+
+            const uniqueReadersCount = readerRow.uniqueReaders;
 
         // Fetch the number of times each chapter has been read
         db.all(chapterReadsSql, (err, rows) => {
@@ -1016,7 +1029,9 @@ app.get('/', (req, res) => {
                             remainingChaptersForNextCompletion,
                             totalBibleChapters,
                             progressPercentage: progressPercentage.toFixed(2),
+                            uniqueReadersCount,
                             isLoggedIn: true
+                        });
                         });       
                     });
                 });

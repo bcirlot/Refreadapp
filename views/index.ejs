@@ -13,6 +13,7 @@
                     <%= Math.round((totalChaptersRead / 50000) * 100) %>%
                 </div>
             </div>
+            <h4>Total Readers: <%= uniqueReadersCount %></h4></br>
             
             <h2>Full Bibles Read: <%= completions %></h2>
             <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
@@ -25,6 +26,7 @@
         <div class="my-4">
             <a href="/bible-progress" class="btn btn-primary">View Bible Progress</a>
         </div>
+        
         <div class="my-4">
         <a href="/book-progress" class="btn btn-primary" style="margin-top: 20px;">View Progress By Book</a>
         </div>
