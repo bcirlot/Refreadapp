@@ -1,25 +1,22 @@
 <div class="container mt-5">
-    <h1 class="text-center mb-4">Leaderboard</h1>
+    <h1 class="text-center mb-4">Family Leaderboard</h1>
 
     <table class="table table-striped">
         <thead>
             <tr class="smallerSize">
                 <th class="smallerSize" scope="col">#</th>
-                <th class="smallerSize" scope="col">Reader</th>
-                <th class="smallerSize" scope="col">Points</th>
+                <th class="smallerSize" scope="col">Family Name</th>
+                <th class="smallerSize" scope="col">Total Points</th>
             </tr>
         </thead>
         <tbody>
-            <% leaderboard.forEach(function(reader, index) { %>
+            <% leaderboard.forEach(function(family, index) { %>
                 <tr class="<%= index === 0 ? 'gold-row' : index === 1 ? 'silver-row' : index === 2 ? 'bronze-row' : '' %>"> <!-- Apply medal classes for top 3 rows -->
                     <td class="smallerSize"><%= index + 1 %></td>
-                    <td class="smallerSize theName" style="font-size: 1em;">
-                        <img src="/ml<%= reader.current_level_id ? reader.current_level_id : 1 %>.webp" alt="Level Image" 
-                             class="img-fluid rounded-circle" 
-                             style="height: 40px; width: 40px; margin-right: 10px;">
-                        <%= reader.reader_name %>
+                    <td class="smallerSize" style="font-size: 1em;">
+                        <%= family.family_name %>
                     </td>
-                    <td class="smallerSize"><%= reader.total_points %></td>
+                    <td class="smallerSize"><%= family.total_points %></td>
                 </tr>
             <% }); %>
         </tbody>
@@ -31,9 +28,6 @@
             background-color: #FFD700 !important; /* Gold background */
             font-weight: bold;
         }
-        /* .theName {
-            font-size: 2em;
-        } */
         .silver-row {
             background-color: #C0C0C0; /* Silver background */
             font-weight: bold;
@@ -43,13 +37,8 @@
             font-weight: bold;
         }
     </style>
-    
-    
 
     <div class="text-center mt-4">
         <a href="/" class="btn btn-primary">Back to Home</a>
-    </div>
-    <div class="text-center mt-4">
-        <a href="/family-leaderboard" class="btn btn-primary">Family Leaderboard</a>
     </div>
 </div>

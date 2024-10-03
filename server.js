@@ -2512,6 +2512,30 @@ app.get('/leaderboard', (req, res) => {
         res.render('leaderboard', { leaderboard: rows });
     });
 });
+app.get('/family-leaderboard', (req, res) => {
+    // Query to get the top families by total points, summing points of all readers in the family
+    const familyLeaderboardSql = `
+        SELECT family.family_name, SUM(userpoints.user_points) as total_points
+        FROM userpoints
+        JOIN readers ON userpoints.reader_id = readers.id
+        JOIN family ON readers.family_id = family.id
+        GROUP BY family.family_name
+        ORDER BY total_points DESC
+        LIMIT 25
+    `;
+
+    db.all(familyLeaderboardSql, [], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving family leaderboard:', err.message);
+            return res.status(500).send('Error retrieving family leaderboard');
+        }
+
+        // Pass the family leaderboard data to the view
+        res.render('family-leaderboard', { leaderboard: rows });
+    });
+});
+
+
 app.get('/reader-reports/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 
