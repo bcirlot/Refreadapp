@@ -233,7 +233,7 @@ app.get('/select-reader', (req, res) => {
 
         if (!user || !user.family_id) {
             console.error('No family ID found for user.');
-            return res.status(500).send('No family found.');
+            return res.redirect('/manage');
         }
 
         // Fetch the readers for the user's family_id
