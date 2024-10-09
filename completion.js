@@ -66,7 +66,7 @@ allChapters.forEach((chapter) => {
         // Step 3: Log these chapters in the completion_chapters table
         last25Chapters.forEach((c, index) => {
             const insertCompletionSql = `
-                INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order, claimed)
+                INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order, points_claimed)
                 VALUES (?, ?, ?, ?, ?, ?)
             `;
             db.run(insertCompletionSql, [c.reader_id, c.chapter_id, c.timestamp, completionCycles, 25 - index, false], (err) => {
