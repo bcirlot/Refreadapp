@@ -80,6 +80,8 @@ function processCollectiveBibleCompletions() {
                 // Reset for the next cycle
                 collectiveChaptersCompleted.clear(); // Clear the set of completed chapters
                 last25Chapters = []; // Reset the last 25 chapters
+                console.log('Completed chapters set cleared after cycle #' + completionCycles);
+
             }
         });
 
