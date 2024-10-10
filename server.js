@@ -1393,7 +1393,6 @@ app.get('/claim-points', (req, res) => {
         res.render('claim-points', { chapters: rows });
     });
 });
-
 app.post('/claim-points', (req, res) => {
     const readerId = req.session.activeReaderId;
 
@@ -1471,15 +1470,38 @@ function processNewCompletions(callback) {
     db.get(getLastProcessedCycleSql, [], (err, row) => {
         if (err) {
             console.error('Error retrieving last processed cycle:', err.message);
-            return callback(err);
+            if (callback) callback(err);
+            return;
         }
 
         const lastProcessedCycle = row.last_cycle || 0;  // Default to 0 if no cycle has been processed
 
         // Step 2: Process new completion cycles starting from lastProcessedCycle + 1
         getLoopCount((loopCount) => {
+            if (loopCount <= lastProcessedCycle) {
+                console.log('No new completion cycles to process.');
+                if (callback) callback(null); // No new cycles, callback as success
+                return;
+            }
+
+            console.log(`Processing new completions from cycle ${lastProcessedCycle + 1} to ${loopCount}`);
+            let cyclesProcessed = 0;
+
+            // Process new cycles in sequence
             for (let i = lastProcessedCycle + 1; i <= loopCount; i++) {
-                processCompletionCycle(i, callback);
+                processCompletionCycle(i, (err) => {
+                    if (err) {
+                        console.error(`Error processing cycle ${i}:`, err);
+                    } else {
+                        console.log(`Successfully processed cycle ${i}`);
+                    }
+
+                    // Once all cycles have been processed, trigger the callback
+                    cyclesProcessed++;
+                    if (cyclesProcessed === loopCount - lastProcessedCycle) {
+                        if (callback) callback(null);
+                    }
+                });
             }
         });
     });
@@ -1512,6 +1534,8 @@ function processCompletionCycle(completionCycle, callback) {
             return callback(null);
         }
 
+        let completedCount = 0;
+
         // Insert the rows into the chapters_completion table only if they don't exist
         rows.forEach((row, index) => {
             const checkIfExistsSql = `
@@ -1534,17 +1558,25 @@ function processCompletionCycle(completionCycle, callback) {
                     db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, completionCycle, 25 - index], (err) => {
                         if (err) {
                             console.error(`Error inserting completion data for cycle ${completionCycle}:`, err.message);
+                        } else {
+                            completedCount++;
+                            if (completedCount === rows.length) {
+                                callback(null);
+                            }
                         }
                     });
                 } else {
                     console.log(`Chapter already exists for cycle ${completionCycle}, skipping...`);
+                    completedCount++;
+                    if (completedCount === rows.length) {
+                        callback(null);
+                    }
                 }
             });
         });
-
-        callback(null);
     });
 }
+
 // Helper function to get the loop count (number of total completion cycles)
 function getLoopCount(callback) {
     const getMinOccurrencesSql = `
