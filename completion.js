@@ -98,13 +98,31 @@ function processMultipleCompletions(loopCount, startingCycle) {
 
             // Process the rows for this cycle (for example, insert them into the completion table)
             rows.forEach((row, index) => {
-                const insertSql = `
-                    INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
-                    VALUES (?, ?, ?, ?, ?);
+                // Check if the chapter has already been recorded for this cycle
+                const checkIfExistsSql = `
+                    SELECT 1 FROM chapters_completion 
+                    WHERE reader_id = ? AND chapter_id = ? AND completion_cycle = ?
                 `;
-                db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, completionCycle, 25 - index], (err) => {
+
+                db.get(checkIfExistsSql, [row.reader_id, row.chapter_id, completionCycle], (err, result) => {
                     if (err) {
-                        console.error(`Error inserting completion data for cycle ${completionCycle}:`, err.message);
+                        console.error('Error checking for existing chapter:', err.message);
+                        return;
+                    }
+
+                    // If the chapter doesn't exist in this cycle, insert it
+                    if (!result) {
+                        const insertSql = `
+                            INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
+                            VALUES (?, ?, ?, ?, ?);
+                        `;
+                        db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, completionCycle, 25 - index], (err) => {
+                            if (err) {
+                                console.error(`Error inserting completion data for cycle ${completionCycle}:`, err.message);
+                            }
+                        });
+                    } else {
+                        console.log(`Chapter ${row.chapter_id} already exists for cycle ${completionCycle}, skipping.`);
                     }
                 });
             });
