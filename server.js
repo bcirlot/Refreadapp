@@ -1462,13 +1462,35 @@ app.post('/claim-points', (req, res) => {
     });
 });
 
-function processNewCompletions() {
-    // The logic you already have to process new completions
-    // Similar to what we developed earlier
-    const totalBibleChapters = 1189;
+function processNewCompletions(callback) {
+    // Step 1: Check the last processed completion cycle
+    const getLastProcessedCycleSql = `
+        SELECT MAX(completion_cycle) AS last_cycle 
+        FROM chapters_completion
+    `;
 
-    // Step 1: Find all chapter completions and process the cycles
-    db.all(`
+    db.get(getLastProcessedCycleSql, [], (err, row) => {
+        if (err) {
+            console.error('Error retrieving last processed cycle:', err.message);
+            return callback(err);
+        }
+
+        const lastProcessedCycle = row.last_cycle || 0;  // Default to 0 if no cycle has been processed
+
+        // Step 2: Process new completion cycles starting from lastProcessedCycle + 1
+        getLoopCount((loopCount) => {
+            for (let i = lastProcessedCycle + 1; i <= loopCount; i++) {
+                processCompletionCycle(i, callback);
+            }
+        });
+    });
+}
+
+function processCompletionCycle(completionCycle, callback) {
+    console.log(`Processing completion cycle: ${completionCycle}`);
+
+    // SQL query to get the nth occurrence of each chapter (based on completionCycle)
+    const sqlQuery = `
         WITH RankedChapters AS (
             SELECT chapter_id, reader_id, timestamp, 
             ROW_NUMBER() OVER (PARTITION BY chapter_id ORDER BY timestamp ASC) AS rank 
@@ -1476,36 +1498,75 @@ function processNewCompletions() {
         )
         SELECT chapter_id, reader_id, timestamp 
         FROM RankedChapters 
-        WHERE rank = (
-            SELECT MIN(rank) 
-            FROM RankedChapters
-        ) 
-        ORDER BY timestamp DESC LIMIT 25;
-    `, (err, rows) => {
+        WHERE rank = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 25;
+    `;
+
+    db.all(sqlQuery, [completionCycle], (err, rows) => {
         if (err) {
-            console.error('Error retrieving chapters:', err.message);
-        } else {
-            console.log('New completion cycles processed.');
-            rows.forEach((row, index) => {
-                const insertSql = `
-                    INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
-                    VALUES (?, ?, ?, ?, ?)
-                `;
-                db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, 1, 25 - index], (err) => {
-                    if (err) {
-                        console.error('Error inserting new completions:', err.message);
-                    }
-                });
-            });
+            console.error(`Error fetching data for cycle ${completionCycle}:`, err.message);
+            return callback(err);
         }
+
+        if (rows.length === 0) {
+            console.log(`No data found for completion cycle: ${completionCycle}`);
+            return callback(null);
+        }
+
+        // Insert the rows into the chapters_completion table only if they don't exist
+        rows.forEach((row, index) => {
+            const checkIfExistsSql = `
+                SELECT 1 FROM chapters_completion
+                WHERE reader_id = ? AND chapter_id = ? AND completion_cycle = ?
+            `;
+
+            db.get(checkIfExistsSql, [row.reader_id, row.chapter_id, completionCycle], (err, result) => {
+                if (err) {
+                    console.error(`Error checking if completion chapter exists for cycle ${completionCycle}:`, err.message);
+                    return;
+                }
+
+                // If it doesn't exist, insert the new entry
+                if (!result) {
+                    const insertSql = `
+                        INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
+                        VALUES (?, ?, ?, ?, ?);
+                    `;
+                    db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, completionCycle, 25 - index], (err) => {
+                        if (err) {
+                            console.error(`Error inserting completion data for cycle ${completionCycle}:`, err.message);
+                        }
+                    });
+                } else {
+                    console.log(`Chapter already exists for cycle ${completionCycle}, skipping...`);
+                }
+            });
+        });
+
+        callback(null);
     });
 }
 
+// Helper function to get the loop count (number of total completion cycles)
+function getLoopCount(callback) {
+    const getMinOccurrencesSql = `
+        SELECT MIN(chapter_count) AS lowest_occurrences 
+        FROM (SELECT chapter_id, COUNT(*) AS chapter_count 
+              FROM user_chapters GROUP BY chapter_id) AS chapter_counts
+    `;
 
+    db.get(getMinOccurrencesSql, [], (err, row) => {
+        if (err) {
+            console.error('Error retrieving the minimum occurrences:', err.message);
+            return;
+        }
 
-
-
-
+        const loopCount = row.lowest_occurrences || 0;  // Set the loopCount based on the minimum occurrences
+        console.log(`Loop count set to: ${loopCount}`);
+        callback(loopCount);
+    });
+}
 
 
 async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
