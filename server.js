@@ -1377,7 +1377,7 @@ app.get('/claim-points', (req, res) => {
 
     // Query to get the reader's entries in chapters_completion
     const getChaptersSql = `
-        SELECT chapter_id, completion_order * 2 AS points, completion_cycle, points_claimed 
+        SELECT chapter_id, COALESCE(completion_order, 0) * 2 AS points, completion_cycle, points_claimed 
         FROM chapters_completion 
         WHERE reader_id = ? 
         ORDER BY points_claimed ASC, completion_cycle DESC, completion_order DESC
@@ -1461,7 +1461,6 @@ app.post('/claim-points', (req, res) => {
         });
     });
 });
-
 function processNewCompletions(callback) {
     // Step 1: Check the last processed completion cycle
     const getLastProcessedCycleSql = `
@@ -1485,7 +1484,6 @@ function processNewCompletions(callback) {
         });
     });
 }
-
 function processCompletionCycle(completionCycle, callback) {
     console.log(`Processing completion cycle: ${completionCycle}`);
 
@@ -1547,7 +1545,6 @@ function processCompletionCycle(completionCycle, callback) {
         callback(null);
     });
 }
-
 // Helper function to get the loop count (number of total completion cycles)
 function getLoopCount(callback) {
     const getMinOccurrencesSql = `
@@ -1567,8 +1564,6 @@ function getLoopCount(callback) {
         callback(loopCount);
     });
 }
-
-
 async function recordChapters(userId, readerId, chapters, bookName, res, req, redirectRoute, callback) {
     const insertChapterSql = `INSERT INTO user_chapters (user_id, reader_id, chapter_id) VALUES (?, ?, ?)`;
     const stmt = db.prepare(insertChapterSql);
