@@ -1365,7 +1365,6 @@ app.post('/clear-conversation', (req, res) => {
         return res.status(400).send("No conversation to clear for this reader.");
     }
 });
-// GET route to display the claim points page
 app.get('/claim-points', (req, res) => {
     const readerId = req.session.activeReaderId;
 
@@ -1373,12 +1372,15 @@ app.get('/claim-points', (req, res) => {
         return res.redirect('/login');
     }
 
-    // Query to get the reader's entries in chapters_completion, with unclaimed chapters first
+    // Run the script to process new completions before loading the points page
+    processNewCompletions();
+
+    // Query to get the reader's entries in chapters_completion
     const getChaptersSql = `
-        SELECT chapter_id, completion_order, completion_cycle, points_claimed 
+        SELECT chapter_id, completion_order * 2 AS points, completion_cycle, points_claimed 
         FROM chapters_completion 
         WHERE reader_id = ? 
-        ORDER BY points_claimed ASC, completion_cycle, completion_order DESC
+        ORDER BY points_claimed ASC, completion_cycle DESC, completion_order DESC
     `;
 
     db.all(getChaptersSql, [readerId], (err, rows) => {
@@ -1391,6 +1393,7 @@ app.get('/claim-points', (req, res) => {
         res.render('claim-points', { chapters: rows });
     });
 });
+
 app.post('/claim-points', (req, res) => {
     const readerId = req.session.activeReaderId;
 
@@ -1459,6 +1462,44 @@ app.post('/claim-points', (req, res) => {
     });
 });
 
+function processNewCompletions() {
+    // The logic you already have to process new completions
+    // Similar to what we developed earlier
+    const totalBibleChapters = 1189;
+
+    // Step 1: Find all chapter completions and process the cycles
+    db.all(`
+        WITH RankedChapters AS (
+            SELECT chapter_id, reader_id, timestamp, 
+            ROW_NUMBER() OVER (PARTITION BY chapter_id ORDER BY timestamp ASC) AS rank 
+            FROM user_chapters
+        )
+        SELECT chapter_id, reader_id, timestamp 
+        FROM RankedChapters 
+        WHERE rank = (
+            SELECT MIN(rank) 
+            FROM RankedChapters
+        ) 
+        ORDER BY timestamp DESC LIMIT 25;
+    `, (err, rows) => {
+        if (err) {
+            console.error('Error retrieving chapters:', err.message);
+        } else {
+            console.log('New completion cycles processed.');
+            rows.forEach((row, index) => {
+                const insertSql = `
+                    INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
+                    VALUES (?, ?, ?, ?, ?)
+                `;
+                db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, 1, 25 - index], (err) => {
+                    if (err) {
+                        console.error('Error inserting new completions:', err.message);
+                    }
+                });
+            });
+        }
+    });
+}
 
 
 
