@@ -10,31 +10,7 @@ let db = new sqlite3.Database('../mydatabase.db', (err) => {
     console.log('Connected to the SQLite database.');
 });
 
-// Create chapters_completion table without dropping it
-const createCompletionTable = `
-    CREATE TABLE IF NOT EXISTS chapters_completion (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        reader_id INTEGER,
-        chapter_id INTEGER,
-        timestamp TEXT,
-        completion_order INTEGER,
-        completion_cycle INTEGER,
-        points_claimed INTEGER DEFAULT 0
-    );
-`;
-
-db.exec(createCompletionTable, (err) => {
-    if (err) {
-        console.error('Error creating chapters_completion table:', err.message);
-        return;
-    }
-
-    console.log('chapters_completion table created successfully.');
-
-    getLoopCountAndProcessCompletions();
-});
-
-function getLoopCountAndProcessCompletions() {
+function updateCompletionCycles() {
     // Step 1: Find the lowest occurrences for any chapter to determine how many completions
     const getMinOccurrencesSql = `
         SELECT MIN(chapter_count) AS lowest_occurrences 
@@ -65,12 +41,12 @@ function getLoopCountAndProcessCompletions() {
             console.log(`Last recorded completion cycle: ${lastCycle}`);
 
             // Process new completions starting from the next cycle
-            processMultipleCompletions(loopCount, lastCycle + 1);
+            processNewCompletions(loopCount, lastCycle + 1);
         });
     });
 }
 
-function processMultipleCompletions(loopCount, startingCycle) {
+function processNewCompletions(loopCount, startingCycle) {
     for (let i = startingCycle; i <= loopCount; i++) {
         const completionCycle = i;
 
@@ -94,9 +70,9 @@ function processMultipleCompletions(loopCount, startingCycle) {
                 return;
             }
 
-            console.log(`Processing completion cycle: ${completionCycle}`);
+            console.log(`Processing new completion cycle: ${completionCycle}`);
 
-            // Process the rows for this cycle (for example, insert them into the completion table)
+            // Insert new rows into the chapters_completion table
             rows.forEach((row, index) => {
                 const insertSql = `
                     INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
@@ -111,6 +87,9 @@ function processMultipleCompletions(loopCount, startingCycle) {
         });
     }
 }
+
+// Execute the update
+updateCompletionCycles();
 
 // Close the database connection once done
 db.close((err) => {
