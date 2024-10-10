@@ -15,7 +15,7 @@
                 <tr>
                     <td><%= chapter.chapter_id %></td>
                     <td><%= chapter.completion_cycle %></td>
-                    <td><%= chapter.completion_order * 2 %></td> <!-- Points column -->
+                    <td><%= chapter.completion_order%></td> <!-- Points column -->
                     <td>
                         <% if (!chapter.points_claimed) { %>
                             <button type="submit" name="chapters" value="<%= chapter.chapter_id %>" class="btn btn-success">Claim</button>
