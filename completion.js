@@ -74,29 +74,31 @@ db.exec(createCompletionTable, (err) => {
 
     console.log('chapters_completion table created successfully.');
 
-    function getLoopCountAndProcessCompletions() {
-        // SQL query to get the lowest number of occurrences for any chapter
-        const getMinOccurrencesSql = `
-            SELECT MIN(chapter_count) AS lowest_occurrences 
-            FROM (SELECT chapter_id, COUNT(*) AS chapter_count 
-                  FROM user_chapters GROUP BY chapter_id) AS chapter_counts
-        `;
-    
-        // Execute the query to get the loop count (number of completion cycles)
-        db.get(getMinOccurrencesSql, [], (err, row) => {
-            if (err) {
-                console.error('Error retrieving the minimum occurrences:', err.message);
-                return;
-            }
-    
-            const loopCount = row.lowest_occurrences;  // Set the loopCount based on the minimum occurrences
-            console.log(`Loop count set to: ${loopCount}`);
-    
-            // Now call the processCollectiveBibleCompletions function with the loop count
-            processMultipleCompletions(loopCount);
-        });
-    }
+    getLoopCountAndProcessCompletions();
 });
+function getLoopCountAndProcessCompletions() {
+    // SQL query to get the lowest number of occurrences for any chapter
+    const getMinOccurrencesSql = `
+        SELECT MIN(chapter_count) AS lowest_occurrences 
+        FROM (SELECT chapter_id, COUNT(*) AS chapter_count 
+              FROM user_chapters GROUP BY chapter_id) AS chapter_counts
+    `;
+
+    // Execute the query to get the loop count (number of completion cycles)
+    db.get(getMinOccurrencesSql, [], (err, row) => {
+        if (err) {
+            console.error('Error retrieving the minimum occurrences:', err.message);
+            return;
+        }
+
+        const loopCount = row.lowest_occurrences;  // Set the loopCount based on the minimum occurrences
+        console.log(`Loop count set to: ${loopCount}`);
+
+        // Now call the processCollectiveBibleCompletions function with the loop count
+        processMultipleCompletions(loopCount);
+    });
+}
+
 // Close the database connection once done
 db.close((err) => {
     if (err) {
