@@ -5,8 +5,8 @@
         <thead class="thead-dark">
             <tr>
                 <th>Ch.</th>
-                <th>Order</th>
                 <th>Cycle</th>
+                <th>Points</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -14,8 +14,8 @@
             <% chapters.forEach(chapter => { %>
                 <tr>
                     <td><%= chapter.chapter_id %></td>
-                    <td><%= chapter.completion_order %></td>
                     <td><%= chapter.completion_cycle %></td>
+                    <td><%= chapter.completion_order * 2 %></td> <!-- Points column -->
                     <td>
                         <% if (!chapter.points_claimed) { %>
                             <button type="submit" name="chapters" value="<%= chapter.chapter_id %>" class="btn btn-success">Claim</button>

@@ -1391,10 +1391,6 @@ app.get('/claim-points', (req, res) => {
         res.render('claim-points', { chapters: rows });
     });
 });
-
-// POST route to claim points for unclaimed chapters
-// POST route to claim points for unclaimed chapters
-// POST route to claim points for unclaimed chapters
 app.post('/claim-points', (req, res) => {
     const readerId = req.session.activeReaderId;
 
@@ -1414,37 +1410,55 @@ app.post('/claim-points', (req, res) => {
         chaptersToClaim = [chaptersToClaim]; // Convert single value to array
     }
 
-    const pointsPerChapter = 100; // Points per chapter
-    const totalPoints = chaptersToClaim.length * pointsPerChapter;
+    // Step 1: Fetch the details of the chapters to claim from the database
+    const getChapterDetailsSql = `
+        SELECT chapter_id, completion_order 
+        FROM chapters_completion 
+        WHERE reader_id = ? AND chapter_id IN (${chaptersToClaim.map(() => '?').join(',')})
+    `;
 
-    console.log(`Adding ${totalPoints} points to reader ${readerId}. Chapters to claim:`, chaptersToClaim);
-
-    // Step 1: Add points to the reader
-    addPoints(readerId, totalPoints, (err) => {
+    db.all(getChapterDetailsSql, [readerId, ...chaptersToClaim], (err, rows) => {
         if (err) {
-            console.error('Error adding points:', err.message);
-            return res.status(500).send('Error adding points');
+            console.error('Error retrieving chapter details:', err.message);
+            return res.status(500).send('Error retrieving chapter details');
         }
 
-        // Step 2: Update the chapters_completion table to mark these chapters as claimed
-        const updateChaptersSql = `
-            UPDATE chapters_completion 
-            SET points_claimed = 1 
-            WHERE reader_id = ? AND chapter_id IN (${chaptersToClaim.map(() => '?').join(',')})
-        `;
+        // Step 2: Calculate the total points based on the completion_order (doubled)
+        let totalPoints = 0;
+        rows.forEach(row => {
+            totalPoints += row.completion_order * 2;
+        });
 
-        db.run(updateChaptersSql, [readerId, ...chaptersToClaim], (err) => {
+        console.log(`Adding ${totalPoints} points to reader ${readerId}. Chapters to claim:`, chaptersToClaim);
+
+        // Step 3: Add the calculated points to the reader
+        addPoints(readerId, totalPoints, (err) => {
             if (err) {
-                console.error('Error updating chapters as claimed:', err.message);
-                return res.status(500).send('Error updating chapters as claimed');
+                console.error('Error adding points:', err.message);
+                return res.status(500).send('Error adding points');
             }
 
-            console.log(`${totalPoints} points successfully claimed for reader ${readerId}.`);
-            req.flash('success', `${totalPoints} points claimed!`);
-            res.redirect('/claim-points');
+            // Step 4: Update the chapters_completion table to mark these chapters as claimed
+            const updateChaptersSql = `
+                UPDATE chapters_completion 
+                SET points_claimed = 1 
+                WHERE reader_id = ? AND chapter_id IN (${chaptersToClaim.map(() => '?').join(',')})
+            `;
+
+            db.run(updateChaptersSql, [readerId, ...chaptersToClaim], (err) => {
+                if (err) {
+                    console.error('Error updating chapters as claimed:', err.message);
+                    return res.status(500).send('Error updating chapters as claimed');
+                }
+
+                console.log(`${totalPoints} points successfully claimed for reader ${readerId}.`);
+                req.flash('success', `${totalPoints} points claimed!`);
+                res.redirect('/claim-points');
+            });
         });
     });
 });
+
 
 
 
