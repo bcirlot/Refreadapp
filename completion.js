@@ -22,98 +22,53 @@ const createCompletionTable = `
     );
 `;
 
-// Function to track collective Bible completions and log the last 25 chapters
-function processCollectiveBibleCompletions() {
-    console.log('Starting processCollectiveBibleCompletions...');
+function processMultipleCompletions(loopCount) {
+    for (let i = 1; i <= loopCount; i++) {
+        const completionCycle = i;
 
-    // Step 1: Get all the chapters and sort them by timestamp
-    const allChaptersSql = `
-    SELECT chapter_id, reader_id, timestamp 
-    FROM user_chapters 
-    ORDER BY timestamp ASC
-    `;
+        // SQL query to get the nth occurrence of each chapter (based on completionCycle)
+        const sqlQuery = `
+            WITH RankedChapters AS (
+                SELECT chapter_id, reader_id, timestamp, 
+                ROW_NUMBER() OVER (PARTITION BY chapter_id ORDER BY timestamp ASC) AS rank 
+                FROM user_chapters
+            )
+            SELECT chapter_id, reader_id, timestamp 
+            FROM RankedChapters 
+            WHERE rank = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 25;
+        `;
 
-    db.all(allChaptersSql, [], (err, allChapters) => {
-        if (err) {
-            console.error('Error retrieving chapters:', err.message);
-            return res.status(500).send('Error retrieving chapters');
-        }
-
-        console.log('Total chapters retrieved:', allChapters.length);
-
-        const totalBibleChapters = 1189;
-        let chapterCounts = {};  // Track how many times each chapter has been read
-        let chapterUsage = {};   // Track how many times each chapter has been used in a completion cycle
-        let completionCycles = 0;
-
-        // Initialize chapter usage tracking
-        allChapters.forEach(chapter => {
-            chapterUsage[chapter.chapter_id] = 0; // Initialize usage count for each chapter
-        });
-
-        console.log('Initialized chapter usage tracking for all chapters.');
-
-        // Step 2: Process each reported chapter
-        allChapters.forEach((chapter, index) => {
-            const { chapter_id, reader_id, timestamp } = chapter;
-
-            // Increment the count for this chapter
-            if (!chapterCounts[chapter_id]) {
-                chapterCounts[chapter_id] = 0;
-            }
-            chapterCounts[chapter_id] += 1;
-
-            // Log chapter processing
-            console.log(`Processing chapter ${chapter_id} from reader ${reader_id} (Index: ${index})`);
-
-            // Mark the chapter as used for the current cycle
-            chapterUsage[chapter_id] += 1;
-
-            // Log chapter usage
-            console.log(`Chapter ${chapter_id} usage in current cycle: ${chapterUsage[chapter_id]}`);
-
-            // Check if a full cycle (1189 chapters) has been completed
-            const chaptersUsedInCurrentCycle = Object.values(chapterUsage).filter(count => count === completionCycles + 1).length;
-            console.log(`Chapters used in current cycle: ${chaptersUsedInCurrentCycle}`);
-
-            if (chaptersUsedInCurrentCycle === totalBibleChapters) {
-                // Increment the cycle count
-                completionCycles++;
-                console.log(`Completion cycle ${completionCycles} detected.`);
-
-                // Step 3: Find the last 25 chapters for this cycle, based on the timestamp and update usage
-                const last25Chapters = allChapters
-                    .filter(c => chapterUsage[c.chapter_id] === completionCycles) // Only take chapters used in this specific cycle
-                    .slice(-25);
-
-                console.log(`Last 25 chapters for completion cycle ${completionCycles}:`, last25Chapters.map(c => c.chapter_id));
-
-                // Log these chapters in the chapters_completion table
-                last25Chapters.forEach((c, index) => {
-                    const insertCompletionSql = `
-                        INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
-                        VALUES (?, ?, ?, ?, ?)
-                    `;
-                    db.run(insertCompletionSql, [c.reader_id, c.chapter_id, c.timestamp, completionCycles, 25 - index], (err) => {
-                        if (err) {
-                            console.error('Error logging completion chapter:', err.message);
-                        } else {
-                            console.log(`Logged chapter ${c.chapter_id} for completion cycle ${completionCycles}`);
-                        }
-                    });
-                });
-            }
-        });
-
-        // Close the database connection once done
-        db.close((err) => {
+        db.all(sqlQuery, [completionCycle], (err, rows) => {
             if (err) {
-                return console.error(err.message);
+                console.error(`Error fetching data for cycle ${completionCycle}:`, err.message);
+                return;
             }
-            console.log('Database connection closed.');
+
+            console.log(`Processing completion cycle: ${completionCycle}`);
+
+            // Process the rows for this cycle (for example, insert them into the completion table)
+            rows.forEach((row, index) => {
+                const insertSql = `
+                    INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order)
+                    VALUES (?, ?, ?, ?, ?);
+                `;
+                db.run(insertSql, [row.reader_id, row.chapter_id, row.timestamp, completionCycle, 25 - index], (err) => {
+                    if (err) {
+                        console.error(`Error inserting completion data for cycle ${completionCycle}:`, err.message);
+                    }
+                });
+            });
         });
-    });
+    }
 }
+
+// Set the number of cycles to process
+const loopCount = 12;  // Change this to whatever number you need
+
+
+
 
 
 
@@ -127,5 +82,12 @@ db.exec(createCompletionTable, (err) => {
     console.log('chapters_completion table created successfully.');
 
     // Process collective Bible completions
-    processCollectiveBibleCompletions();
+    processMultipleCompletions(loopCount);
+});
+// Close the database connection once done
+db.close((err) => {
+    if (err) {
+        return console.error(err.message);
+    }
+    console.log('Database connection closed.');
 });
