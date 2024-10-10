@@ -24,7 +24,6 @@ const createCompletionTable = `
 
 // Function to track collective Bible completions and log the last 25 chapters
 function processCollectiveBibleCompletions() {
-    // Query to get all chapter reports, ordered by timestamp
     // Step 1: Get all the chapters and sort them by timestamp
 const allChaptersSql = `
 SELECT chapter_id, reader_id, timestamp 
@@ -40,8 +39,13 @@ if (err) {
 
 const totalBibleChapters = 1189;
 let chapterCounts = {};  // Track how many times each chapter has been read
+let chapterUsage = {};   // Track how many times each chapter has been used in a completion cycle
 let completionCycles = 0;
-let completionChapters = [];
+
+// Initialize chapter usage tracking
+allChapters.forEach(chapter => {
+    chapterUsage[chapter.chapter_id] = 0; // Initialize usage count for each chapter
+});
 
 // Step 2: Process each reported chapter
 allChapters.forEach((chapter) => {
@@ -53,28 +57,34 @@ allChapters.forEach((chapter) => {
     }
     chapterCounts[chapter_id] += 1;
 
-    // If we've reached a full cycle of 1189 unique chapters, log the last 25
-    if (Object.values(chapterCounts).filter(count => count >= completionCycles + 1).length === totalBibleChapters) {
-        // Track the completion cycle
-        completionCycles++;
+    // Check if the chapter hasn't been used up for any previous completions
+    if (chapterUsage[chapter_id] < completionCycles) {
+        // If we've reached a full cycle of 1189 unique chapters, log the last 25 for the current cycle
+        if (Object.values(chapterUsage).filter(count => count === completionCycles).length === totalBibleChapters) {
+            // Track the completion cycle
+            completionCycles++;
 
-        // Find the last 25 chapters for this cycle, based on timestamp
-        const last25Chapters = allChapters
-            .filter(c => chapterCounts[c.chapter_id] === completionCycles)
-            .slice(-25);
+            // Step 3: Find the last 25 chapters for this cycle, based on the timestamp and update usage
+            const last25Chapters = allChapters
+                .filter(c => chapterUsage[c.chapter_id] === completionCycles - 1) // Only take chapters used in this specific cycle
+                .slice(-25);
 
-        // Step 3: Log these chapters in the completion_chapters table
-        last25Chapters.forEach((c, index) => {
-            const insertCompletionSql = `
-                INSERT INTO chapters_completion (reader_id, chapter_id, timestamp, completion_cycle, completion_order, points_claimed)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `;
-            db.run(insertCompletionSql, [c.reader_id, c.chapter_id, c.timestamp, completionCycles, 25 - index, false], (err) => {
-                if (err) {
-                    console.error('Error logging completion chapter:', err.message);
-                }
+            // Log these chapters in the completion_chapters table
+            last25Chapters.forEach((c, index) => {
+                const insertCompletionSql = `
+                    INSERT INTO completion_chapters (reader_id, chapter_id, timestamp, cycle_number, chapter_order, claimed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `;
+                db.run(insertCompletionSql, [c.reader_id, c.chapter_id, c.timestamp, completionCycles, 25 - index, false], (err) => {
+                    if (err) {
+                        console.error('Error logging completion chapter:', err.message);
+                    }
+                });
+
+                // Mark the chapter as used for the current cycle
+                chapterUsage[c.chapter_id] = completionCycles;
             });
-        });
+        }
     }
 });
 
