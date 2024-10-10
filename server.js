@@ -1388,7 +1388,7 @@ app.get('/claim-points', (req, res) => {
             console.error('Error retrieving completion chapters:', err.message);
             return res.status(500).send('Error retrieving completion chapters');
         }
-
+        console.log('Chapters:', rows);
         // Render the page and pass the chapters list
         res.render('claim-points', { chapters: rows });
     });
