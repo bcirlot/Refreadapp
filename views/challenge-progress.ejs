@@ -1,0 +1,54 @@
+<body>
+    <h1>Reading Challenge Progress</h1>
+    
+    <% if (dailyProgress.length > 0) { %>
+        <div>
+            <canvas id="progressChart"></canvas>
+        </div>
+    <% } else { %>
+        <p>No chapters have been reported yet.</p>
+    <% } %>
+
+    <script>
+        const dailyProgress = <%- JSON.stringify(dailyProgress) %>;
+    
+        if (dailyProgress.length > 0) {
+            const labels = dailyProgress.map(data => data.day); // x-axis (days)
+            const dataPoints = dailyProgress.map(data => data.chaptersReported); // y-axis (chapters reported)
+    
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            const progressChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels, // Labels will still be the days, but they will appear on the y-axis
+                    datasets: [{
+                        label: 'Chapters Reported Per Day',
+                        data: dataPoints,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',  // This makes the bar chart horizontal
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Chapters Reported'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Days of Challenge'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    
+    

@@ -1,0 +1,36 @@
+<h2>Claim Your Points</h2>
+
+<form action="/claim-points" method="POST">
+    <table>
+        <thead>
+            <tr>
+                <th>Select</th>
+                <th>Ch.</th>
+                <th>Order</th>
+                <th>Cycle</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% chapters.forEach(chapter => { %>
+                <tr>
+                    <td>
+                        <% if (!chapter.points_claimed) { %>
+                            <input type="checkbox" name="chapters" value="<%= chapter.chapter_id %>">
+                        <% } else { %>
+                            Claimed
+                        <% } %>
+                    </td>
+                    <td><%= chapter.chapter_id %></td>
+                    <td><%= chapter.completion_order %></td>
+                    <td><%= chapter.completion_cycle %></td>
+                    <td>
+                        <%= chapter.points_claimed ? 'Yes' : 'No' %>
+                    </td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+
+    <button type="submit">Claim</button>
+</form>
