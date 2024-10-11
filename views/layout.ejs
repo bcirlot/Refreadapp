@@ -185,12 +185,12 @@ table .smallerSize {
 
     .confetti {
     position: absolute;
+    top: 0;
     width: 10px;
     height: 10px;
     background-color: rgba(255, 87, 34, 0.7);
     opacity: 0;
-    top: 0;
-    animation: confettiFall 5s linear infinite;
+    animation: confettiFall linear infinite;
     transform: rotate(0deg);
 }
 
@@ -200,18 +200,12 @@ table .smallerSize {
         opacity: 1;
     }
     100% {
-        transform: translateY(100vh) rotate(720deg); /* Rotate as they fall */
+        transform: translateY(100vh) rotate(720deg); /* Falling to bottom of viewport with rotation */
         opacity: 1;
     }
 }
 
-.confetti {
-    left: calc(100vw * var(--confetti-position)); /* Randomize horizontal position */
-    animation-duration: var(--confetti-speed); /* Use custom speed from JS */
-    animation-delay: var(--confetti-delay); /* Use custom delay from JS */
-}
-
-/* Add more colors for variety */
+/* More colors for variety */
 .confetti:nth-child(odd) {
     background-color: rgba(34, 193, 195, 0.7);
 }
@@ -219,7 +213,6 @@ table .smallerSize {
 .confetti:nth-child(even) {
     background-color: rgba(253, 187, 45, 0.7);
 }
-
 
     </style>
     

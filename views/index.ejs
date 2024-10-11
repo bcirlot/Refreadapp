@@ -85,16 +85,18 @@
         // Trigger confetti effect
         const confettiElements = document.querySelectorAll('.confetti');
         confettiElements.forEach(function(confetti) {
-            // Randomize the position, speed, and delay for each confetti element
-            confetti.style.setProperty('--confetti-position', Math.random());  // Randomize left position
-            confetti.style.setProperty('--confetti-speed', 2 + Math.random() * 4);  // Speed range from 2s to 6s
-            confetti.style.setProperty('--confetti-delay', Math.random() * 2);  // Delay range from 0s to 2s
+            const randomLeft = Math.random() * 100;  // Randomize left position between 0% and 100%
+            const randomSpeed = 3 + Math.random() * 4;  // Speed range from 3s to 7s
+            const randomDelay = Math.random() * 2;  // Delay range from 0s to 2s
+            
+            // Apply the randomized styles to each confetti element
+            confetti.style.left = `${randomLeft}vw`;
+            confetti.style.animationDuration = `${randomSpeed}s`;
+            confetti.style.animationDelay = `${randomDelay}s`;
             confetti.style.opacity = 1;
-            confetti.style.animation = 'confettiFall var(--confetti-speed) linear var(--confetti-delay) infinite';
         });
     }
 });
-
 
 
 </script>
