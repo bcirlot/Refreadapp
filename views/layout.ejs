@@ -191,6 +191,7 @@ table .smallerSize {
     opacity: 0;
     top: 0;
     animation: confettiFall 5s linear infinite;
+    transform: rotate(0deg);
 }
 
 @keyframes confettiFall {
@@ -199,15 +200,15 @@ table .smallerSize {
         opacity: 1;
     }
     100% {
-        transform: translateY(100vh) rotate(360deg);
+        transform: translateY(100vh) rotate(720deg); /* Rotate as they fall */
         opacity: 1;
     }
 }
 
 .confetti {
-    left: calc(100% * var(--confetti-position)); /* Randomize horizontal position */
-    animation-duration: calc(3s + var(--confetti-speed) * 2s); /* Vary speed */
-    animation-delay: calc(var(--confetti-delay) * 3s); /* Vary delay */
+    left: calc(100vw * var(--confetti-position)); /* Randomize horizontal position */
+    animation-duration: var(--confetti-speed); /* Use custom speed from JS */
+    animation-delay: var(--confetti-delay); /* Use custom delay from JS */
 }
 
 /* Add more colors for variety */
@@ -218,6 +219,7 @@ table .smallerSize {
 .confetti:nth-child(even) {
     background-color: rgba(253, 187, 45, 0.7);
 }
+
 
     </style>
     
