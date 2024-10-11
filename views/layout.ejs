@@ -397,26 +397,23 @@ table .smallerSize {
             }
         });
     }
-       // Audio player logic: submit the form when audio ends
-       const audio = document.querySelector('audio');
-       const currentSpeed = audio.playbackRate;
-       // Check if the autoplay flag is set in the query parameters
-       const urlParams = new URLSearchParams(window.location.search);
+    const audio = document.querySelector('audio');
+        const currentSpeed = audio ? audio.playbackRate : 1.0;
+        const urlParams = new URLSearchParams(window.location.search);
         const autoPlay = urlParams.get('autoplay');
         const speed = parseFloat(urlParams.get('speed')) || 1.0;
-        
+
         if (audio) {
             audio.playbackRate = speed;  // Set playback speed
             if (autoPlay === 'true') {
                 audio.play();  // Play the audio automatically
             }
         }
-        const form = document.querySelector('form[action="/mark-chapter-read"]');
 
+        const form = document.querySelector('form[action="/mark-chapter-read"]');
         if (audio && form) {
             audio.addEventListener('ended', function() {
-                const speed = audio.playbackRate;  // Capture the current playback speed
-                form.insertAdjacentHTML('beforeend', `<input type="hidden" name="speed" value="${speed}">`);
+                form.insertAdjacentHTML('beforeend', `<input type="hidden" name="speed" value="${audio.playbackRate}">`);
                 form.submit();  // Submit the form when the audio ends
             });
         }
