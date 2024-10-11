@@ -85,10 +85,15 @@
         // Trigger confetti effect
         const confettiElements = document.querySelectorAll('.confetti');
         confettiElements.forEach(function(confetti) {
+            // Randomize the position, speed, and delay for each confetti element
+            confetti.style.setProperty('--confetti-position', Math.random());  // Randomize left position
+            confetti.style.setProperty('--confetti-speed', Math.random());     // Randomize speed
+            confetti.style.setProperty('--confetti-delay', Math.random());     // Randomize delay
             confetti.style.opacity = 1;
             confetti.style.animation = 'confettiFall 5s linear infinite';
         });
     }
 });
+
 
 </script>
