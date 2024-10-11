@@ -1,88 +1,68 @@
+<div id="maincontent" class="text-center">
+    <% if (!isLoggedIn) { %>
+        <h1>Welcome to the Reading Tracker App!</h1>
+        <p>Please <a href="/login">log in/register</a> to track your reading progress. Checkout our <a href="/about">about page</a> for more information.</p>
+        <br>
+    <% } %>
 
-    <div id="maincontent" class="text-center">  
-        <% if (!isLoggedIn) { %>
-            <h1>Welcome to the Reading Tracker App!</h1>
-            <p>Please <a href="/login">log in/register</a> to track your reading progress. Checkout our <a href="/about">about page</a> for more information.</p>
-        </br>
-            <% } %>
-
-            <h2>Total Chapters Read: <%= totalChaptersRead %></h2>
-            <h4>Goal: 60,000 Chapters</h4>
-            <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
-                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (totalChaptersRead / 60000) * 100 %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="60000">
-                    <%= Math.round((totalChaptersRead / 60000) * 100) %>%
-                </div>
-            </div>
-            
-            
-            <h2>Full Bibles Read: <%= completions %></h2>
-            <h4>Goal 2.0: 50</h4>
-            <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
-                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (completions / 50) * 100 %>%; height: 40px;" aria-valuenow="<%= completions %>" aria-valuemin="0" aria-valuemax="50">
-                    <%= (completions / 50) * 100 %>%
-                </div>
-            </div>
-            <h4>Percent to to next Full Bible:</h4>
-            <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
-                <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= progressPercentage %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
-                    <%= progressPercentage %>%
-                </div>
-            </div>
-            
-        <h4>Chapters remaining: <%= totalBibleChapters - remainingChaptersForNextCompletion %></h4>
-        <div class="my-4">
-            <a href="/bible-progress" class="btn btn-primary">View Bible Progress</a>
-        </div>
-        
-        <div class="my-4">
-        <a href="/book-progress" class="btn btn-primary" style="margin-top: 20px;">View Progress By Book</a>
-        </div>
-            <% if (isLoggedIn) { %>
-                <h2>Chapter Counts by Reader</h2>
-                <table class="table table-bordered">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th>Reader Name</th>
-                            <th>Total Chapters</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <% readerCounts.forEach(function(row) { %>
-                            <tr>
-                                <td><%= row.reader_name %></td>
-                                <td><%= row.chapter_count %></td>
-                            </tr>
-                        <% }); %>
-                    </tbody>
-                </table>
-
-                <!-- <h2>User Chapters</h2>
-                <table class="table table-bordered">
-                    <thead class="thead-dark">
-                        <tr>
-                            
-                            <th>Reader Name</th>
-                            
-                            <th>Chapter Name</th>
-                            <th>Timestamp</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <% chapterRows.forEach(function(row) { %>
-                            <tr>
-                                
-                                <td><%= row.reader_name %></td>
-                                
-                                <td><%= row.chapter_name %></td>
-                                <td><%= row.timestamp %></td>
-                            </tr>
-                        <% }); %>
-                    </tbody>
-                </table> -->
-            <% } %>
-            
-         
-            
+    <!-- Flashy Header for Total Chapters Read -->
+    <h2>Total Chapters Read: <%= totalChaptersRead %> <span class="milestone-badge">Milestone!</span></h2>
+    <h4>Goal: 60,000 Chapters</h4>
+    <div class="progress my-4" style="height: 40px;"> <!-- Adjust the height here -->
+        <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (totalChaptersRead / 60000) * 100 %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="60000">
+            <%= Math.round((totalChaptersRead / 60000) * 100) %>%
         </div>
     </div>
 
+    <!-- Full Bibles Read Section -->
+    <h2>Full Bibles Read: <%= completions %> <span class="milestone-badge">New Record!</span></h2>
+    <h4>Goal 2.0: 50</h4>
+    <div class="progress my-4" style="height: 40px;">
+        <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= (completions / 50) * 100 %>%; height: 40px;" aria-valuenow="<%= completions %>" aria-valuemin="0" aria-valuemax="50">
+            <%= (completions / 50) * 100 %>%
+        </div>
+    </div>
+
+    <!-- Percent to next Full Bible -->
+    <h4>Percent to next Full Bible:</h4>
+    <div class="progress my-4" style="height: 40px;">
+        <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width: <%= progressPercentage %>%; height: 40px;" aria-valuenow="<%= totalChaptersRead %>" aria-valuemin="0" aria-valuemax="10000">
+            <%= progressPercentage %>%
+        </div>
+    </div>
+
+    <!-- Chapters remaining -->
+    <h4>Chapters remaining: <%= totalBibleChapters - remainingChaptersForNextCompletion %></h4>
+    <div class="my-4">
+        <a href="/bible-progress" class="btn btn-primary">View Bible Progress</a>
+    </div>
+    
+    <div class="my-4">
+        <a href="/book-progress" class="btn btn-primary" style="margin-top: 20px;">View Progress By Book</a>
+    </div>
+
+    <% if (isLoggedIn) { %>
+        <h2>Chapter Counts by Reader</h2>
+        <table class="table table-bordered">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Reader Name</th>
+                    <th>Total Chapters</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% readerCounts.forEach(function(row) { %>
+                    <tr>
+                        <td><%= row.reader_name %></td>
+                        <td><%= row.chapter_count %></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    <% } %>
+
+    <!-- Confetti elements -->
+    <div class="confetti"></div>
+    <div class="confetti"></div>
+    <!-- Add more confetti divs for better visual effect -->
+</div>
