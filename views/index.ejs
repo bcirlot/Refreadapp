@@ -78,7 +78,7 @@
 </div>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-    const totalChapters = <%= totalChaptersRead %>;
+    const totalChapters = 29568;
     const chapterGoal = 20000;
     
     if (totalChapters >= chapterGoal) {
@@ -86,7 +86,7 @@
         const confettiElements = document.querySelectorAll('.confetti');
         confettiElements.forEach(function(confetti) {
             confetti.style.opacity = 1;
-            confetti.style.animation = 'confetti 5s linear infinite';
+            confetti.style.animation = 'confettiFall 5s linear infinite';
         });
     }
 });
