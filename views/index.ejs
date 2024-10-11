@@ -77,7 +77,7 @@
     <!-- Add more confetti divs for better visual effect -->
 </div>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function() {
     const totalChapters = 29568;
     const chapterGoal = 20000;
     
@@ -87,13 +87,14 @@
         confettiElements.forEach(function(confetti) {
             // Randomize the position, speed, and delay for each confetti element
             confetti.style.setProperty('--confetti-position', Math.random());  // Randomize left position
-            confetti.style.setProperty('--confetti-speed', Math.random());     // Randomize speed
-            confetti.style.setProperty('--confetti-delay', Math.random());     // Randomize delay
+            confetti.style.setProperty('--confetti-speed', 2 + Math.random() * 4);  // Speed range from 2s to 6s
+            confetti.style.setProperty('--confetti-delay', Math.random() * 2);  // Delay range from 0s to 2s
             confetti.style.opacity = 1;
-            confetti.style.animation = 'confettiFall 5s linear infinite';
+            confetti.style.animation = 'confettiFall var(--confetti-speed) linear var(--confetti-delay) infinite';
         });
     }
 });
+
 
 
 </script>
