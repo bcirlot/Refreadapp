@@ -66,3 +66,19 @@
     <div class="confetti"></div>
     <!-- Add more confetti divs for better visual effect -->
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const totalChapters = <%= totalChaptersRead %>;
+    const chapterGoal = 60000;
+    
+    if (totalChapters >= chapterGoal) {
+        // Trigger confetti effect
+        const confettiElements = document.querySelectorAll('.confetti');
+        confettiElements.forEach(function(confetti) {
+            confetti.style.opacity = 1;
+            confetti.style.animation = 'confetti 5s linear infinite';
+        });
+    }
+});
+
+</script>

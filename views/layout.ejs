@@ -312,77 +312,66 @@ table .smallerSize {
                     alert('An error occurred while exporting the CSV.');
                 });
         }
-    
         document.addEventListener('DOMContentLoaded', function() {
-            // Flash message close button functionality
-            const closeBtn = document.querySelector('.flash-close-btn');
-            const flashMessage = document.querySelector('.flash-message');
+    // Flash message close button functionality
+    const closeBtn = document.querySelector('.flash-close-btn');
+    const flashMessage = document.querySelector('.flash-message');
     
-            if (closeBtn && flashMessage) {
-                closeBtn.addEventListener('click', function() {
-                    flashMessage.style.display = 'none'; // Hide the message
-                });
+    if (closeBtn && flashMessage) {
+        closeBtn.addEventListener('click', function() {
+            flashMessage.style.display = 'none'; // Hide the message
+        });
+    }
+
+    // Book selection and spinner functionality
+    const recordBookForm = document.getElementById('recordBookForm');
+    const spinner = document.getElementById('loadingSpinner');
+
+    if (recordBookForm) {
+        recordBookForm.addEventListener('submit', function(e) {
+            const checkedBooks = document.querySelectorAll('input[name="bookName[]"]:checked');
+            console.log('Checked Books:', checkedBooks); // Debugging statement
+            
+            // Check if no books are selected
+            if (checkedBooks.length === 0) {
+                e.preventDefault();
+                alert('Please select at least one book.');
+                return; // Prevent spinner from showing if no books are selected
             }
-    
-            // Book selection and spinner functionality
-            const recordBookForm = document.getElementById('recordBookForm');
-            const spinner = document.getElementById('loadingSpinner');
-    
-            if (recordBookForm) {
-                recordBookForm.addEventListener('submit', function(e) {
-                    const checkedBooks = document.querySelectorAll('input[name="bookName[]"]:checked');
-                    console.log('Checked Books:', checkedBooks); // Debugging statement
-                    
-                    // Check if no books are selected
-                    if (checkedBooks.length === 0) {
-                        e.preventDefault();
-                        alert('Please select at least one book.');
-                        return; // Prevent spinner from showing if no books are selected
-                    }
-    
-                    // Show the spinner if form submission is valid
-                    if (spinner) {
-                        spinner.style.display = 'block';
-                    }
-                });
-            }
-    
-            // Audio player logic: submit the form when audio ends
-            const audio = document.querySelector('audio');
-            const currentSpeed = audio ? audio.playbackRate : 1.0;
-            const urlParams = new URLSearchParams(window.location.search);
-            const autoPlay = urlParams.get('autoplay');
-            const speed = parseFloat(urlParams.get('speed')) || 1.0;
-    
-            if (audio) {
-                audio.playbackRate = speed;  // Set playback speed
-                if (autoPlay === 'true') {
-                    audio.play();  // Play the audio automatically
-                }
-            }
-    
-            const form = document.querySelector('form[action="/mark-chapter-read"]');
-            if (audio && form) {
-                audio.addEventListener('ended', function() {
-                    form.insertAdjacentHTML('beforeend', `<input type="hidden" name="speed" value="${audio.playbackRate}">`);
-                    form.submit();  // Submit the form when the audio ends
-                });
-            }
-    
-            // Confetti logic for when goals are reached
-            const totalChapters = <%= totalChaptersRead %>;  // This should be injected by your server
-            const chapterGoal = 20000;  // Example goal
-    
-            if (totalChapters >= chapterGoal) {
-                console.log('Confetti triggered!');
-    
-                const confettiElements = document.querySelectorAll('.confetti');
-                confettiElements.forEach(function(confetti) {
-                    confetti.style.opacity = 1;
-                    confetti.style.animation = 'confetti 5s linear infinite';  // Start confetti animation
-                });
+            
+            // Show the spinner if form submission is valid
+            if (spinner) {
+                spinner.style.display = 'block';
             }
         });
+    }
+       // Audio player logic: submit the form when audio ends
+       const audio = document.querySelector('audio');
+       const currentSpeed = audio.playbackRate;
+       // Check if the autoplay flag is set in the query parameters
+       const urlParams = new URLSearchParams(window.location.search);
+        const autoPlay = urlParams.get('autoplay');
+        const speed = parseFloat(urlParams.get('speed')) || 1.0;
+        
+        if (audio) {
+            audio.playbackRate = speed;  // Set playback speed
+            if (autoPlay === 'true') {
+                audio.play();  // Play the audio automatically
+            }
+        }
+        const form = document.querySelector('form[action="/mark-chapter-read"]');
+
+        if (audio && form) {
+            audio.addEventListener('ended', function() {
+                const speed = audio.playbackRate;  // Capture the current playback speed
+                form.insertAdjacentHTML('beforeend', `<input type="hidden" name="speed" value="${speed}">`);
+                form.submit();  // Submit the form when the audio ends
+            });
+        }
+});
+
+
+
     </script>
 </body>
 </html>
