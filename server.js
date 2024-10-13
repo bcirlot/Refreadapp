@@ -2765,7 +2765,21 @@ app.get('/family-leaderboard', (req, res) => {
         res.render('family-leaderboard', { leaderboard: rows });
     });
 });
-
+app.get('/chapters-leaderboard', async (req, res) => {
+    try {
+      const leaderboard = await db.query(
+        `SELECT reader_id, COUNT(*) as chapters_reported 
+         FROM user_chapters 
+         GROUP BY reader_id 
+         ORDER BY chapters_reported DESC
+         LIMIT 25`
+      );
+      res.render('chapters-leaderboard', { leaderboard: leaderboard.rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Server Error');
+    }
+  });
 
 app.get('/reader-reports/:readerId', (req, res) => {
     const readerId = req.params.readerId;
