@@ -2730,7 +2730,7 @@ app.get('/leaderboard', (req, res) => {
         JOIN readers ON userpoints.reader_id = readers.id
         GROUP BY readers.reader_name, readers.current_level_id
         ORDER BY total_points DESC
-        LIMIT 25
+        LIMIT 40
     `;
 
     db.all(leaderboardSql, [], (err, rows) => {
