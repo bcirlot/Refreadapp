@@ -2766,20 +2766,20 @@ app.get('/family-leaderboard', (req, res) => {
     });
 });
 app.get('/chapters-leaderboard', async (req, res) => {
-    try {
-      const leaderboard = await db.query(
-        `SELECT reader_id, COUNT(*) as chapters_reported 
-         FROM user_chapters 
-         GROUP BY reader_id 
-         ORDER BY chapters_reported DESC
-         LIMIT 25`
-      );
-      res.render('chapters-leaderboard', { leaderboard: leaderboard.rows });
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('Server Error');
-    }
-  });
+    const chapLead = `SELECT reader_id, COUNT(*) as chapters_reported 
+        FROM user_chapters 
+        GROUP BY reader_id 
+        ORDER BY chapters_reported DESC
+        LIMIT 25`;
+    db.all(chapLead, [], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving leaderboard:', err.message);
+            return res.status(500).send('Error retrieving leaderboard');
+        }
+        // Pass the leaderboard data to the view
+        res.render('chapters-leaderboard', { leaderboard: rows });
+    });
+});
 
 app.get('/reader-reports/:readerId', (req, res) => {
     const readerId = req.params.readerId;
