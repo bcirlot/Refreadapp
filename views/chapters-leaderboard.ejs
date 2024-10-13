@@ -1,0 +1,49 @@
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Chapters Leaderboard</h1>
+
+    <table class="table table-striped">
+        <thead>
+            <tr class="smallerSize">
+                <th class="smallerSize" scope="col">#</th>
+                <th class="smallerSize" scope="col">Reader</th>
+                <th class="smallerSize" scope="col">Chapters Reported</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% leaderboard.forEach(function(reader, index) { %>
+                <tr class="<%= index === 0 ? 'gold-row' : index === 1 ? 'silver-row' : index === 2 ? 'bronze-row' : '' %>">
+                    <td class="smallerSize"><%= index + 1 %></td>
+                    <td class="smallerSize theName" style="font-size: 1em;">
+                        <img src="/ml<%= reader.current_level_id ? reader.current_level_id : 1 %>.webp" alt="Level Image" 
+                             class="img-fluid rounded-circle" 
+                             style="height: 40px; width: 40px; margin-right: 10px;">
+                        <%= reader.reader_name %>
+                    </td>
+                    <td class="smallerSize"><%= reader.chapters_reported %></td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <style>
+        .gold-row  {
+            background-color: #FFD700 !important; /* Gold background */
+            font-weight: bold;
+        }
+        .silver-row {
+            background-color: #C0C0C0; /* Silver background */
+            font-weight: bold;
+        }
+        .bronze-row {
+            background-color: #CD7F32 !important; /* Bronze background */
+            font-weight: bold;
+        }
+    </style>
+
+    <div class="text-center mt-4">
+        <a href="/" class="btn btn-primary">Back to Home</a>
+    </div>
+    <div class="text-center mt-4">
+        <a href="/family-leaderboard" class="btn btn-primary">Family Leaderboard</a>
+    </div>
+</div>
