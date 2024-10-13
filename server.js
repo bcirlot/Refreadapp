@@ -2766,8 +2766,9 @@ app.get('/family-leaderboard', (req, res) => {
     });
 });
 app.get('/chapters-leaderboard', async (req, res) => {
-    const chapLead = `SELECT reader_id, COUNT(*) as chapters_reported 
+    const chapLead = `SELECT readers.reader_name, reader_id, COUNT(*) as chapters_reported 
         FROM user_chapters 
+        JOIN readers ON user_chapters.reader_id = readers.id
         GROUP BY reader_id 
         ORDER BY chapters_reported DESC
         LIMIT 25`;
