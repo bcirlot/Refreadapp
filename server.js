@@ -1074,7 +1074,7 @@ app.get('/book-progress', (req, res) => {
         // Prepare data for rendering in the order of appearance in chaptersmaster
         const bookProgress = Object.keys(bookCompletionCounts).map(book => ({
             book,
-            completions: Math.min(bookCompletionCounts[book], 20) // Cap the completion count at 20
+            completions: Math.min(bookCompletionCounts[book], 50) // Cap the completion count at 20
         }));
 
         // Render the progress view
