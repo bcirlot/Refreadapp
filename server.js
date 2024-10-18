@@ -2746,6 +2746,39 @@ app.get('/leaderboard', (req, res) => {
         res.render('leaderboard', { leaderboard: rows });
     });
 });
+app.get('/group-leaderboard', (req, res) => {
+    const leaderboardSql = `
+        SELECT readers.reader_name, SUM(userpoints.user_points) AS total_points, readers.current_level_id, readers.age_range, readers.gender
+        FROM userpoints
+        JOIN readers ON userpoints.reader_id = readers.id
+        WHERE readers.gender != 'undefined'  -- Ignore undefined gender
+        GROUP BY readers.reader_name, readers.current_level_id, readers.age_range, readers.gender
+        ORDER BY total_points DESC
+    `;
+
+    db.all(leaderboardSql, [], (err, rows) => {
+        if (err) {
+            console.error('Error retrieving leaderboard:', err.message);
+            return res.status(500).send('Error retrieving leaderboard');
+        }
+
+        // Group the results by age range and gender
+        const leaderboardByGroup = {};
+        rows.forEach(reader => {
+            const groupKey = `${reader.age_range}_${reader.gender}`;
+            if (!leaderboardByGroup[groupKey]) {
+                leaderboardByGroup[groupKey] = [];
+            }
+            if (leaderboardByGroup[groupKey].length < 3) { // Only take the top 3
+                leaderboardByGroup[groupKey].push(reader);
+            }
+        });
+
+        // Pass the grouped leaderboard data to the view
+        res.render('group-leaderboard', { leaderboardByGroup });
+    });
+});
+
 app.get('/family-leaderboard', (req, res) => {
     // Query to get the top families by total points, summing points of all readers in the family
     const familyLeaderboardSql = `
