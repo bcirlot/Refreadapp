@@ -2734,7 +2734,7 @@ app.get('/group-leaderboard', (req, res) => {
         JOIN readers ON userpoints.reader_id = readers.id
         WHERE readers.gender != 'undefined'  -- Ignore undefined gender
         GROUP BY readers.reader_name, readers.current_level_id, readers.age_range, readers.gender
-        ORDER BY total_points DESC
+        ORDER BY total_points DESC;
     `;
 
     db.all(leaderboardSql, [], (err, rows) => {
@@ -2755,10 +2755,30 @@ app.get('/group-leaderboard', (req, res) => {
             }
         });
 
-        // Pass the grouped leaderboard data to the view
-        res.render('group-leaderboard', { leaderboardByGroup });
+        // Define a custom sorting order for groups (alternating between male and female for each age range)
+        const ageRanges = ['0-5', '6-11', '12-18', '19-35', '36-55', '56-100'];
+        const genders = ['male', 'female'];
+
+        const sortedGroups = [];
+
+        // Alternate between male and female for each age range
+        ageRanges.forEach(ageRange => {
+            genders.forEach(gender => {
+                const groupKey = `${ageRange}_${gender}`;
+                if (leaderboardByGroup[groupKey]) {
+                    sortedGroups.push({
+                        groupKey,
+                        readers: leaderboardByGroup[groupKey]
+                    });
+                }
+            });
+        });
+
+        // Pass the sorted groups to the view
+        res.render('group-leaderboard', { sortedGroups });
     });
 });
+
 
 app.get('/family-leaderboard', (req, res) => {
     // Query to get the top families by total points, summing points of all readers in the family
