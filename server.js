@@ -2377,25 +2377,6 @@ app.get('/edit-reader/:readerId', (req, res) => {
         });
     });
 });
-
-app.post('/edit-reader/:readerId', (req, res) => {
-    if (!req.session.userId) {
-        return res.status(403).send('Access denied');
-    }
-    const readerId = req.params.readerId;
-    const newName = req.body.readerName;
-
-    const updateReaderSql = `UPDATE readers SET reader_name = ? WHERE id = ?`;
-    db.run(updateReaderSql, [newName, readerId], function (err) {
-        if (err) {
-            console.error('Error updating reader:', err.message);
-            return res.status(500).send('Error updating reader');
-        }
-
-        // Redirect back to the manage page after updating the reader
-        res.redirect('/manage');
-    });
-});
 app.post('/edit-reader/:readerId', (req, res) => {
     if (!req.session.userId) {
         return res.status(403).send('Access denied');
