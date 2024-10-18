@@ -2357,7 +2357,7 @@ app.post('/joinFamily', (req, res) => {
 app.get('/edit-reader/:readerId', (req, res) => {
     const readerId = req.params.readerId;
 
-    const readerSql = `SELECT reader_name FROM readers WHERE id = ?`;
+    const readerSql = `SELECT reader_name, age_range, gender FROM readers WHERE id = ?`;
     db.get(readerSql, [readerId], (err, reader) => {
         if (err) {
             console.error('Error fetching reader:', err.message);
@@ -2368,9 +2368,16 @@ app.get('/edit-reader/:readerId', (req, res) => {
             return res.status(404).send('Reader not found');
         }
 
-        res.render('edit-reader', { readerId, readerName: reader.reader_name });
+        // Pass the age_range and gender to the view
+        res.render('edit-reader', { 
+            readerId, 
+            readerName: reader.reader_name, 
+            ageRange: reader.age_range, 
+            gender: reader.gender 
+        });
     });
 });
+
 app.post('/edit-reader/:readerId', (req, res) => {
     if (!req.session.userId) {
         return res.status(403).send('Access denied');
@@ -2389,35 +2396,31 @@ app.post('/edit-reader/:readerId', (req, res) => {
         res.redirect('/manage');
     });
 });
-app.post('/delete-reader/:readerId', (req, res) => {
+app.post('/edit-reader/:readerId', (req, res) => {
     if (!req.session.userId) {
         return res.status(403).send('Access denied');
     }
-    const readerId = req.params.readerId;
 
-    // Step 1: Delete all related chapters for this reader
-    const deleteChaptersSql = `DELETE FROM user_chapters WHERE reader_id = ?`;
-    db.run(deleteChaptersSql, [readerId], function(err) {
+    const readerId = req.params.readerId;
+    const newName = req.body.readerName;
+    const newAgeRange = req.body.ageRange;  // Fetch the new age range from the form
+    const newGender = req.body.gender;      // Fetch the new gender from the form
+
+    const updateReaderSql = `UPDATE readers 
+                             SET reader_name = ?, age_range = ?, gender = ? 
+                             WHERE id = ?`;
+
+    db.run(updateReaderSql, [newName, newAgeRange, newGender, readerId], function (err) {
         if (err) {
-            console.error('Error deleting chapters:', err.message);
-            return res.status(500).send('Error deleting chapters');
+            console.error('Error updating reader:', err.message);
+            return res.status(500).send('Error updating reader');
         }
 
-        console.log(`Chapters for reader ID: ${readerId} deleted successfully.`);
-
-        // Step 2: Delete the reader after chapters are deleted
-        const deleteReaderSql = `DELETE FROM readers WHERE id = ?`;
-        db.run(deleteReaderSql, [readerId], function(err) {
-            if (err) {
-                console.error('Error deleting reader:', err.message);
-                return res.status(500).send('Error deleting reader');
-            }
-
-            console.log(`Reader with ID: ${readerId} deleted successfully.`);
-            res.redirect('/manage');
-        });
+        // Redirect back to the manage page after updating the reader
+        res.redirect('/manage');
     });
 });
+
 app.get('/admin', (req, res, next) => {
     if (req.session.role !== 'admin') {
         return res.redirect('/');
